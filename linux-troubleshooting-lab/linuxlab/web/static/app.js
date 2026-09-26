@@ -13,6 +13,24 @@ let interviewCurrent = null;
 let interviewAnswers = [];
 let selectedLevel = localStorage.getItem("linuxlab_level") || "EASY";
 
+let currentUser = null;
+let authToken = localStorage.getItem("linuxlab_token") || "";
+let authMode = "login"; // "login" or "register"
+
+async function apiFetch(url, options = {}) {
+  options.headers = options.headers || {};
+  if (authToken && !options.headers["Authorization"]) {
+    options.headers["Authorization"] = `Bearer ${authToken}`;
+  }
+  options.credentials = "same-origin";
+  const res = await fetch(url, options);
+  if (res.status === 401 && !url.includes("/api/auth/")) {
+    currentUser = null;
+    updateAuthUI();
+  }
+  return res;
+}
+
 const LEVEL_DESCRIPTIONS = {
   "EASY": "Focus: Linux fundamentals + guided troubleshooting",
   "MODERATE": "Focus: Multi-command investigation & symptom correlation",
@@ -32,7 +50,9 @@ function initApp() {
   initTerminal();
   initNav();
   initActions();
+  initAuth();
   selectLevel(selectedLevel, false);
+  checkAuthStatus();
   fetchStatus();
   fetchLibrary();
   fetchProgress();
@@ -175,7 +195,9 @@ function connectTerminalWs() {
   }
 
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const wsUrl = `${protocol}//${window.location.host}/ws/terminal`;
+  const wsUrl = authToken
+    ? `${protocol}//${window.location.host}/ws/terminal?token=${encodeURIComponent(authToken)}`
+    : `${protocol}//${window.location.host}/ws/terminal`;
 
   term.write("\r\n\x1b[36mConnecting to sandbox terminal...\x1b[0m\r\n");
 
@@ -241,6 +263,8 @@ function initNav() {
           }, 50);
         } else if (targetId === "progress-pane") {
           fetchProgress();
+        } else if (targetId === "history-pane") {
+          fetchHistory();
         } else if (targetId === "library-pane") {
           fetchLibrary();
         }
@@ -409,17 +433,23 @@ function initActions() {
 
   // Random Incident
   document.getElementById("btn-random-incident").addEventListener("click", async () => {
+    if (!currentUser) {
+      openAuthModal("login");
+      return;
+    }
     try {
-      const res = await fetch("/api/incidents/random", {
+      const res = await apiFetch("/api/incidents/random", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ level: selectedLevel }),
       });
       if (res.ok) {
         switchToTab("incident-pane");
+        connectTerminalWs();
         fetchStatus();
       } else {
-        alert("Failed to inject random incident. Check lab container status.");
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || "Failed to inject random incident. Check lab container status.");
       }
     } catch (e) {
       alert("Error starting incident: " + e);
@@ -430,11 +460,12 @@ function initActions() {
   document.getElementById("btn-reset-env").addEventListener("click", async () => {
     if (!confirm("Are you sure you want to reset the lab sandbox environment?")) return;
     try {
-      const res = await fetch("/api/incidents/reset", { method: "POST" });
+      const res = await apiFetch("/api/incidents/reset", { method: "POST" });
       const data = await res.json();
       alert(data.message || "Environment reset complete.");
       fetchStatus();
-      // Keep existing terminal session attached to sandbox
+      fetchProgress();
+      fetchHistory();
     } catch (e) {
       alert("Error resetting environment: " + e);
     }
@@ -447,7 +478,7 @@ function initActions() {
 
   document.getElementById("btn-unlock-next-hint").addEventListener("click", async () => {
     try {
-      const res = await fetch("/api/incidents/hint", { method: "POST" });
+      const res = await apiFetch("/api/incidents/hint", { method: "POST" });
       if (!res.ok) {
         alert("Failed to unlock hint.");
         return;
@@ -475,7 +506,7 @@ function initActions() {
     btn.textContent = "Verifying Lab State...";
 
     try {
-      const res = await fetch("/api/incidents/evaluate", {
+      const res = await apiFetch("/api/incidents/evaluate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ explanation: explanation }),
@@ -484,6 +515,7 @@ function initActions() {
       renderEvaluationReport(data);
       fetchStatus();
       fetchProgress();
+      fetchHistory();
     } catch (e) {
       alert("Evaluation failed: " + e);
     } finally {
@@ -526,9 +558,191 @@ function initActions() {
   if (filterDiff) filterDiff.addEventListener("change", fetchLibrary);
   document.getElementById("btn-refresh-progress").addEventListener("click", fetchProgress);
 
+  const btnRefreshHistory = document.getElementById("btn-refresh-history");
+  if (btnRefreshHistory) btnRefreshHistory.addEventListener("click", fetchHistory);
+
   // Interview Mode
   document.getElementById("btn-new-interview").addEventListener("click", fetchInterviewQuestion);
   document.getElementById("btn-submit-interview-ans").addEventListener("click", submitInterviewAnswer);
+}
+
+// --- Authentication UI & Handlers ---
+
+function initAuth() {
+  const btnOpenAuth = document.getElementById("btn-open-auth");
+  if (btnOpenAuth) btnOpenAuth.addEventListener("click", () => openAuthModal("login"));
+
+  const btnCloseAuth = document.getElementById("btn-close-auth");
+  if (btnCloseAuth) btnCloseAuth.addEventListener("click", closeAuthModal);
+
+  const tabLogin = document.getElementById("tab-auth-login");
+  const tabReg = document.getElementById("tab-auth-register");
+  if (tabLogin) tabLogin.addEventListener("click", () => switchAuthTab("login"));
+  if (tabReg) tabReg.addEventListener("click", () => switchAuthTab("register"));
+
+  const btnSubmitAuth = document.getElementById("btn-submit-auth");
+  if (btnSubmitAuth) btnSubmitAuth.addEventListener("click", handleAuthSubmit);
+
+  const authForm = document.getElementById("auth-form");
+  if (authForm) {
+    authForm.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleAuthSubmit();
+      }
+    });
+  }
+
+  const btnLogout = document.getElementById("btn-logout");
+  if (btnLogout) btnLogout.addEventListener("click", handleLogout);
+}
+
+function switchAuthTab(mode) {
+  authMode = mode;
+  const tabLogin = document.getElementById("tab-auth-login");
+  const tabReg = document.getElementById("tab-auth-register");
+  const title = document.getElementById("auth-modal-title");
+  const btnSubmit = document.getElementById("btn-submit-auth");
+  const errBox = document.getElementById("auth-error-msg");
+  if (errBox) errBox.style.display = "none";
+
+  if (mode === "login") {
+    if (tabLogin) tabLogin.classList.add("active");
+    if (tabReg) tabReg.classList.remove("active");
+    if (title) title.textContent = "Sign In to Linux Lab";
+    if (btnSubmit) btnSubmit.textContent = "Sign In";
+  } else {
+    if (tabLogin) tabLogin.classList.remove("active");
+    if (tabReg) tabReg.classList.add("active");
+    if (title) title.textContent = "Create an Account";
+    if (btnSubmit) btnSubmit.textContent = "Create Account";
+  }
+}
+
+function openAuthModal(mode = "login") {
+  switchAuthTab(mode);
+  const userIn = document.getElementById("auth-username");
+  const passIn = document.getElementById("auth-password");
+  if (userIn) userIn.value = "";
+  if (passIn) passIn.value = "";
+  const errBox = document.getElementById("auth-error-msg");
+  if (errBox) errBox.style.display = "none";
+  document.getElementById("auth-modal").classList.add("open");
+  if (userIn) setTimeout(() => userIn.focus(), 50);
+}
+
+function closeAuthModal() {
+  document.getElementById("auth-modal").classList.remove("open");
+}
+
+async function handleAuthSubmit() {
+  const username = (document.getElementById("auth-username").value || "").trim();
+  const password = document.getElementById("auth-password").value || "";
+  const errBox = document.getElementById("auth-error-msg");
+
+  if (!username || !password) {
+    if (errBox) {
+      errBox.style.display = "block";
+      errBox.textContent = "Please enter both username and password.";
+    }
+    return;
+  }
+
+  const endpoint = authMode === "login" ? "/api/auth/login" : "/api/auth/register";
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      if (errBox) {
+        errBox.style.display = "block";
+        errBox.textContent = data.detail || "Authentication request failed.";
+      }
+      return;
+    }
+
+    authToken = data.token;
+    localStorage.setItem("linuxlab_token", authToken);
+    currentUser = data.user;
+    closeAuthModal();
+    updateAuthUI();
+    connectTerminalWs();
+    fetchStatus();
+    fetchProgress();
+    fetchHistory();
+  } catch (e) {
+    if (errBox) {
+      errBox.style.display = "block";
+      errBox.textContent = "Network error: " + e;
+    }
+  }
+}
+
+async function handleLogout() {
+  try {
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      headers: authToken ? { "Authorization": `Bearer ${authToken}` } : {}
+    });
+  } catch (e) {}
+
+  authToken = "";
+  localStorage.removeItem("linuxlab_token");
+  currentUser = null;
+  updateAuthUI();
+  connectTerminalWs();
+  fetchStatus();
+  fetchProgress();
+  fetchHistory();
+}
+
+async function checkAuthStatus() {
+  if (!authToken) {
+    currentUser = null;
+    updateAuthUI();
+    return;
+  }
+  try {
+    const res = await apiFetch("/api/auth/me");
+    if (res.ok) {
+      const data = await res.json();
+      currentUser = data.user;
+      updateAuthUI();
+      fetchHistory();
+    } else {
+      currentUser = null;
+      authToken = "";
+      localStorage.removeItem("linuxlab_token");
+      updateAuthUI();
+    }
+  } catch (e) {
+    currentUser = null;
+    updateAuthUI();
+  }
+}
+
+function updateAuthUI() {
+  const userPill = document.getElementById("auth-user-pill");
+  const btnOpenAuth = document.getElementById("btn-open-auth");
+  const userDisplay = document.getElementById("user-display-name");
+  const welcomeMsg = document.getElementById("dashboard-welcome-msg");
+  const welcomeSub = document.getElementById("dashboard-welcome-sub");
+
+  if (currentUser) {
+    if (userPill) userPill.style.display = "flex";
+    if (btnOpenAuth) btnOpenAuth.style.display = "none";
+    if (userDisplay) userDisplay.textContent = `👤 ${currentUser.username}`;
+    if (welcomeMsg) welcomeMsg.textContent = `WELCOME, ${currentUser.username.toUpperCase()}`;
+    if (welcomeSub) welcomeSub.textContent = "Personalized DevOps learning progress and attempt history.";
+  } else {
+    if (userPill) userPill.style.display = "none";
+    if (btnOpenAuth) btnOpenAuth.style.display = "inline-flex";
+    if (welcomeMsg) welcomeMsg.textContent = "WELCOME, GUEST";
+    if (welcomeSub) welcomeSub.textContent = "Sign in to save attempts, track level mastery, and access your personal learning history.";
+  }
 }
 
 function switchToTab(tabId) {
@@ -812,13 +1026,19 @@ async function fetchLibrary() {
 }
 
 window.loadSpecificScenario = async function(id) {
+  if (!currentUser) {
+    openAuthModal("login");
+    return;
+  }
   try {
-    const res = await fetch(`/api/incidents/${id}/start`, { method: "POST" });
+    const res = await apiFetch(`/api/incidents/${id}/start`, { method: "POST" });
     if (res.ok) {
       switchToTab("incident-pane");
+      connectTerminalWs();
       fetchStatus();
     } else {
-      alert("Failed to start scenario " + id);
+      const err = await res.json().catch(() => ({}));
+      alert(err.detail || "Failed to start scenario " + id);
     }
   } catch (e) {
     alert("Error loading scenario: " + e);
@@ -829,13 +1049,24 @@ window.loadSpecificScenario = async function(id) {
 
 async function fetchProgress() {
   try {
-    const res = await fetch("/api/progress");
+    const res = await apiFetch("/api/progress");
     const data = await res.json();
 
-    document.getElementById("stat-total").textContent = data.total_incidents;
-    document.getElementById("stat-solved").textContent = data.solved_count;
-    document.getElementById("stat-avg").textContent = `${data.avg_score}/100`;
-    document.getElementById("stat-hints-used").textContent = data.total_hints;
+    document.getElementById("stat-total").textContent = data.total_incidents || 0;
+    document.getElementById("stat-solved").textContent = data.solved_count || 0;
+    const rate = data.resolution_rate !== undefined ? data.resolution_rate : (data.total_incidents ? Math.round((data.solved_count / data.total_incidents) * 100) : 0);
+    const rateEl = document.getElementById("stat-rate");
+    if (rateEl) rateEl.textContent = `${rate}%`;
+    document.getElementById("stat-avg").textContent = `${data.avg_score || 0}/100`;
+
+    const overallScoreEl = document.getElementById("dashboard-overall-score");
+    if (overallScoreEl) {
+      overallScoreEl.textContent = data.overall_score !== undefined ? `${data.overall_score}/100` : `${data.avg_score || 0}/100`;
+    }
+
+    if (currentUser && currentUser.username) {
+      document.getElementById("dashboard-welcome-msg").textContent = `WELCOME, ${currentUser.username.toUpperCase()}`;
+    }
 
     // Render progressive level mastery rows
     const lvlTbody = document.getElementById("level-progress-tbody");
@@ -849,7 +1080,7 @@ async function fetchProgress() {
         const lvlClass = "badge-level-" + lvl.toLowerCase();
         tr.innerHTML = `
           <td><span class="badge badge-level ${lvlClass}">${lvl}</span></td>
-          <td style="font-family: var(--font-mono); color: var(--accent-green); letter-spacing: 2px;">${stats.bar}</td>
+          <td style="font-family: var(--font-mono); color: var(--accent-green); letter-spacing: 2px;">${stats.bar || "░░░░░░░░░░"}</td>
           <td>${stats.solved} / 5 solved (${stats.attempted} attempted)</td>
           <td style="color: ${rateColor}; font-weight: 700;">${stats.rate}%</td>
           <td>${stats.avg_score}/100</td>
@@ -858,29 +1089,61 @@ async function fetchProgress() {
       });
     }
 
-    if (data.recommended_next_level) {
+    // Render recent attempts
+    const recentTbody = document.getElementById("recent-attempts-tbody");
+    if (recentTbody) {
+      const recent = data.recent_attempts || [];
+      if (recent.length === 0) {
+        recentTbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 14px;">No attempts recorded yet.</td></tr>`;
+      } else {
+        recentTbody.innerHTML = "";
+        recent.forEach((a) => {
+          const tr = document.createElement("tr");
+          const isSolved = a.status === "SOLVED";
+          const statusBadge = isSolved
+            ? `<span class="status-badge-solved">SOLVED</span>`
+            : `<span class="status-badge-unresolved">UNRESOLVED</span>`;
+          const scoreClass = a.score >= 80 ? "high" : (a.score >= 60 ? "medium" : "low");
+          const dateStr = a.created_at ? new Date(a.created_at).toLocaleString() : "Just now";
+          tr.innerHTML = `
+            <td><strong>${a.scenario_title || a.scenario_id}</strong></td>
+            <td><span class="badge badge-level badge-level-${(a.level || 'EASY').toLowerCase()}">${a.level || 'EASY'}</span></td>
+            <td>${statusBadge}</td>
+            <td><span class="score-badge ${scoreClass}">${a.score}/100</span></td>
+            <td style="color: var(--text-muted); font-size: 12px;">${dateStr}</td>
+          `;
+          recentTbody.appendChild(tr);
+        });
+      }
+    }
+
+    if (data.recommended_level || data.recommended_next_level) {
       const recEl = document.getElementById("recommended-level-text");
-      if (recEl) recEl.textContent = data.recommended_next_level;
+      if (recEl) recEl.textContent = data.recommended_level || data.recommended_next_level;
     }
 
     const tbody = document.getElementById("progress-tbody");
-    tbody.innerHTML = "";
-
-    for (const [cat, stats] of Object.entries(data.categories)) {
-      const tr = document.createElement("tr");
-      const rateColor = stats.rate >= 80 ? "var(--accent-green)" : (stats.rate >= 50 ? "var(--accent-yellow)" : "var(--accent-red)");
-      tr.innerHTML = `
-        <td style="font-weight: 700; text-transform: uppercase;">${cat}</td>
-        <td>${stats.attempted}</td>
-        <td>${stats.solved}</td>
-        <td style="color: ${rateColor}; font-weight: 700;">${stats.rate}%</td>
-        <td>${stats.avg_score}/100</td>
-      `;
-      tbody.appendChild(tr);
+    if (tbody && data.categories) {
+      tbody.innerHTML = "";
+      for (const [cat, stats] of Object.entries(data.categories)) {
+        const tr = document.createElement("tr");
+        const rateColor = stats.rate >= 80 ? "var(--accent-green)" : (stats.rate >= 50 ? "var(--accent-yellow)" : "var(--accent-red)");
+        tr.innerHTML = `
+          <td style="font-weight: 700; text-transform: uppercase;">${cat}</td>
+          <td>${stats.attempted}</td>
+          <td>${stats.solved}</td>
+          <td style="color: ${rateColor}; font-weight: 700;">${stats.rate !== undefined ? stats.rate : (stats.success_rate || 0)}%</td>
+          <td>${stats.avg_score}/100</td>
+        `;
+        tbody.appendChild(tr);
+      }
     }
 
     const weakBox = document.getElementById("weak-areas-box");
-    if (data.weakest && data.weakest.length > 0) {
+    if (data.weak_areas && data.weak_areas.length > 0) {
+      weakBox.style.display = "block";
+      document.getElementById("weak-areas-text").textContent = data.weak_areas.join(", ");
+    } else if (data.weakest && data.weakest.length > 0) {
       weakBox.style.display = "block";
       document.getElementById("weak-areas-text").textContent = data.weakest.map(w => w.toUpperCase()).join(", ");
     } else {
@@ -890,6 +1153,107 @@ async function fetchProgress() {
     console.error("Progress fetch error:", e);
   }
 }
+
+// --- History View ---
+
+async function fetchHistory() {
+  if (!currentUser) {
+    const emptyMsg = document.getElementById("history-empty-msg");
+    if (emptyMsg) {
+      emptyMsg.style.display = "block";
+      emptyMsg.textContent = "Please sign in to view your incident attempt history.";
+    }
+    const tbody = document.getElementById("history-tbody");
+    if (tbody) tbody.innerHTML = "";
+    return;
+  }
+
+  try {
+    const res = await apiFetch("/api/history");
+    if (!res.ok) return;
+    const attempts = await res.json();
+
+    const emptyMsg = document.getElementById("history-empty-msg");
+    const tbody = document.getElementById("history-tbody");
+    if (!tbody) return;
+
+    if (attempts.length === 0) {
+      if (emptyMsg) {
+        emptyMsg.style.display = "block";
+        emptyMsg.textContent = "No completed attempts recorded yet. Solve an incident to view your historical evaluations and postmortems.";
+      }
+      tbody.innerHTML = "";
+      return;
+    }
+
+    if (emptyMsg) emptyMsg.style.display = "none";
+    tbody.innerHTML = "";
+
+    attempts.forEach((a) => {
+      const tr = document.createElement("tr");
+      const isSolved = a.status === "SOLVED";
+      const statusBadge = isSolved
+        ? `<span class="status-badge-solved">SOLVED</span>`
+        : `<span class="status-badge-unresolved">UNRESOLVED</span>`;
+      const scoreClass = a.score >= 80 ? "high" : (a.score >= 60 ? "medium" : "low");
+      const dateStr = a.created_at ? new Date(a.created_at).toLocaleString() : "N/A";
+      const durationStr = a.duration_sec ? `${Math.round(a.duration_sec)}s` : "<1m";
+
+      tr.innerHTML = `
+        <td>
+          <strong>${a.scenario_title || a.scenario_id}</strong>
+          <div style="font-size: 11px; color: var(--text-muted);">${a.scenario_id}</div>
+        </td>
+        <td><span class="badge badge-level badge-level-${(a.level || 'EASY').toLowerCase()}">${a.level || 'EASY'}</span></td>
+        <td>${statusBadge}</td>
+        <td><span class="score-badge ${scoreClass}">${a.score}/100</span></td>
+        <td>${durationStr}</td>
+        <td style="color: var(--text-muted); font-size: 12px;">${dateStr}</td>
+        <td>
+          <button class="btn btn-sm" onclick="inspectHistoryAttempt('${a.id}')" style="font-size: 11px; padding: 2px 8px;">Inspect Report</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } catch (e) {
+    console.error("History fetch error:", e);
+  }
+}
+
+window.inspectHistoryAttempt = async function(attemptId) {
+  try {
+    const res = await apiFetch(`/api/history/${attemptId}`);
+    if (!res.ok) {
+      alert("Failed to load attempt record.");
+      return;
+    }
+    const attempt = await res.json();
+    openEvaluateModal();
+
+    document.getElementById("eval-form").style.display = "none";
+    document.getElementById("eval-report").style.display = "flex";
+    document.getElementById("eval-footer").style.display = "flex";
+    document.getElementById("btn-eval-next").style.display = "none";
+
+    const isSolved = attempt.status === "SOLVED";
+    const badge = document.getElementById("report-badge");
+    badge.textContent = isSolved ? `✅ ${attempt.overall_verdict || "INCIDENT RESOLVED"}` : `❌ ${attempt.overall_verdict || "INCIDENT UNRESOLVED"}`;
+    badge.className = isSolved ? "report-result-badge result-solved" : "report-result-badge result-failed";
+
+    document.getElementById("report-score").textContent = `${attempt.score}/100`;
+    document.getElementById("report-signal").textContent = attempt.technical_resolution || (isSolved ? "All system invariants verified healthy." : "System verification failed.");
+
+    const reportObj = {
+      ...attempt,
+      is_solved: isSolved,
+      structured_postmortem: attempt.postmortem,
+      feedback_msg: attempt.technical_resolution || "Machine evaluation record loaded from persistent history."
+    };
+    renderEvaluationReport(reportObj);
+  } catch (e) {
+    alert("Error loading attempt: " + e);
+  }
+};
 
 // --- Interview Mode ---
 

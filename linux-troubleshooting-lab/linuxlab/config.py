@@ -3,11 +3,12 @@ from pathlib import Path
 
 # Base Paths
 ROOT_DIR = Path(__file__).resolve().parent.parent
-STATE_DIR = ROOT_DIR / "linuxlab" / "state"
+STATE_DIR = Path(os.getenv("LINUXLAB_STATE_DIR", ROOT_DIR / "linuxlab" / "state"))
 STATE_DIR.mkdir(parents=True, exist_ok=True)
 
 HISTORY_FILE = STATE_DIR / "history.json"
 SESSION_FILE = STATE_DIR / "current_session.json"
+DB_FILE = STATE_DIR / "linuxlab.db"
 
 # Docker Configuration
 CONTAINER_NAME = os.getenv("LINUXLAB_CONTAINER_NAME", "linuxlab-sandbox")

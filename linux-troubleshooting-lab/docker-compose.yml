@@ -30,12 +30,17 @@ services:
       - "8088:8088"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - linuxlab-data:/root/.linuxlab
     depends_on:
       - sandbox
     environment:
       - TERM=xterm-256color
       - PORT=8088
       - HOST=0.0.0.0
+      - LINUXLAB_STATE_DIR=/root/.linuxlab
       - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+volumes:
+  linuxlab-data:

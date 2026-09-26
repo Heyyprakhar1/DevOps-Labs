@@ -12,6 +12,8 @@ env/
 # Runtime session and history data
 linuxlab/state/history.json
 linuxlab/state/current_session.json
+linuxlab/state/*.db
+*.db
 *.log
 
 # Pytest / Coverage

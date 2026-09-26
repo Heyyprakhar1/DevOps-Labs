@@ -1,47 +1,96 @@
-# Linux Troubleshooting Lab — Progressive DevOps & SRE Practice Environment
+# Linux Troubleshooting Lab — Progressive DevOps & SRE Practice Platform
 
-A safe, disposable, production-grade Linux troubleshooting practice laboratory for DevOps and Site Reliability Engineers.
+A safe, disposable, production-grade Linux troubleshooting practice platform for DevOps and Site Reliability Engineers, featuring multi-user authentication, isolated sandbox containers, 4-dimensional state-based evaluation, and persistent learning metrics.
 
-Rather than static multiple-choice quizzes, `linuxlab` simulates realistic production incidents inside an isolated Docker container (`linuxlab-sandbox`). Learners investigate real symptoms, inspect processes, logs, sockets, and filesystems using authentic Linux utilities, formulate hypotheses, apply fixes, and receive automated post-mortem evaluations.
+Rather than static multiple-choice quizzes, `linuxlab` simulates realistic production incidents inside isolated Docker sandbox containers. Learners investigate real symptoms, inspect processes, logs, sockets, and filesystems using authentic Linux utilities, formulate hypotheses, apply fixes, and receive automated post-mortem evaluations.
 
 ---
 
 ## Architecture Overview
 
 ```
-User (Browser or CLI)
-  │
-  ├── Browser UI: http://localhost:8088 (xterm.js + WebSockets + Dashboard)
-  └── CLI: bin/linuxlab or python3 -m linuxlab.cli
-        ├── Progressive Scenario Engine & Registry (25 Scenarios / 5 Levels)
-        ├── Lab Controller (linuxlab/lab/controller.py)
-        ├── Deterministic Evaluator & Scorer (linuxlab/evaluation/)
-        ├── State & Level Mastery Tracker (linuxlab/state/manager.py)
-        └── Optional Local AI Engine (linuxlab/ai/ollama.py -> Ollama)
-        │
-        ▼ (docker exec / pty / docker compose)
-Disposable Sandbox Container (`linuxlab-sandbox`)
-  ├── Hostname: prod-app-server-01
-  ├── Users: devops (sudo), appuser, root
-  ├── Production Services:
-  │     ├── web-app.service (HTTP 8080: /health, /metrics)
-  │     └── payment-api.service (HTTP 8000: /health, /process-payment)
-  └── Tools: procps, iproute2, sysstat, htop, lsof, strace, curl, jq, vim, nano, etc.
+                        ┌─────────────────────────────────────────────────────────┐
+                        │             Learners & SRE Practitioners                │
+                        └───────────────┬─────────────────────────┬───────────────┘
+                                        │                         │
+                               (HTTP/REST & WebSockets)          (CLI)
+                                        │                         │
+                                        ▼                         │
+┌───────────────────────────────────────────────────────────────┐ │
+│                 LinuxLab Platform (Port 8088)                 │ │
+│                                                               │ │
+│  ┌────────────────────────┐    ┌───────────────────────────┐  │ │
+│  │   Authentication &     │    │  Session & Isolation      │  │ │
+│  │   Token Verification   │    │  Manager (SandboxManager) │  │ │
+│  └───────────┬────────────┘    └─────────────┬─────────────┘  │ │
+│              │                               │                │ │
+│  ┌───────────▼────────────┐    ┌─────────────▼─────────────┐  │ │
+│  │ Persistent SQLite DB   │    │ Terminal WebSocket Proxy  │  │ │
+│  │ (~/.linuxlab/          │    │ (pty fork to isolated     │  │ │
+│  │  linuxlab.db)          │    │  user container)          │  │ │
+│  └────────────────────────┘    └─────────────┬─────────────┘  │ │
+│                                              │                │ │
+│  ┌───────────────────────────────────────────▼─────────────┐  │ │
+│  │ 4-Dimensional State-Based Incident Evaluator            │  │ │
+│  │ (System State + Root Cause + Remediation + Explanation) │  │ │
+│  └─────────────────────────────────────────────────────────┘  │ │
+└───────────────────────────────┬───────────────────────────────┘ │
+                                │ (Docker API / Unix Socket)      │
+                                ▼                                 ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                        Isolated Sandbox Fleet                          │
+│                                                                        │
+│   ┌──────────────────────────────┐    ┌──────────────────────────────┐ │
+│   │ Sandbox A (User A)           │    │ Sandbox B (User B)           │ │
+│   │ linuxlab-sandbox-usrA-sessA  │    │ linuxlab-sandbox-usrB-sessB  │ │
+│   │  ├── Hostname: prod-app-01   │    │  ├── Hostname: prod-app-01   │ │
+│   │  ├── Limits: 512MB, 1.0 CPU  │    │  ├── Limits: 512MB, 1.0 CPU  │ │
+│   │  └── Fault: Injected disk_001│    │  └── Fault: Injected cpu_001 │ │
+│   └──────────────────────────────┘    └──────────────────────────────┘ │
+│                                                                        │
+│   ┌──────────────────────────────┐                                     │
+│   │ Standby/CLI Sandbox          │                                     │
+│   │ linuxlab-sandbox (default)   │                                     │
+│   └──────────────────────────────┘                                     │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Safety & Isolation Model
+## Core Capabilities & Features
 
-* **100% Host Isolation**: All fault injections (CPU burns, memory hogs, unlinked file leaks, socket conflicts, permission drifts, zombie floods) execute strictly inside the Docker container `linuxlab-sandbox`.
-* **Zero Host Impact**: No host processes, filesystems, network configurations, or WSL distributions are modified.
-* **Deterministic Reset**: `linuxlab reset` (or the **Reset Lab** button in the UI) restores the container to a clean, healthy production baseline in seconds via `/opt/scripts/clean_state.sh`.
+### 1. Multi-User Authentication & Authorization
+* **Secure Registration & Login**: Authenticate with unique usernames and strong passwords hashed with industry-standard `bcrypt`.
+* **Session Tokens & Cookies**: Bearer token authorization in API headers and secure cookies for frontend convenience.
+* **Server-Side Authorization**: Strict tenant boundaries. User A cannot access User B's active incident, view User B's history, evaluate User B's container, or connect to User B's terminal WebSocket.
+
+### 2. Isolated User Sandboxes & Dynamic Lifecycle
+* **No Shared Sandboxes**: Every active incident runs in its own dedicated Docker container named deterministically: `linuxlab-sandbox-<user_id[:8]>-<session_id[:8]>`.
+* **Strict Resource Limits**: Sandboxes enforce `--memory=512m`, `--cpus=1.0`, and `--pids-limit=256` to prevent resource hogging or denial of service on host machines.
+* **Automatic Cleanup**: Containers are automatically destroyed when an incident is solved or explicitly abandoned (`/api/incidents/reset`). Stale or orphaned containers older than 2 hours are pruned on platform restart.
+
+### 3. Authorized Terminal WebSocket Connection
+* Browser terminal connects via WebSocket to `/ws/terminal?token=<session_token>`.
+* **Zero Client-Supplied Container Names**: The server resolves the target container strictly by inspecting the authenticated user's active session in the database.
+* Full PTY emulation with terminal resize (`resize` protocol), signal handling (Ctrl+C, Ctrl+D), and interactive command tracking.
+
+### 4. Persistent Learning Metrics vs. Disposable Sandboxes
+* **Containers are Disposable**: Sandbox containers exist solely during troubleshooting. No learning state is stored inside the container filesystem.
+* **Progress is Persistent**: Relational database records all user attempts, scores, durations, hints used, 4-dimensional assessment breakdown, before/after evidence metrics, and structured postmortems.
+* Closing the browser, logging out, or restarting the host environment preserves all learning metrics.
+
+### 5. 4-Dimensional State-Based Evaluation
+Every submitted solution is verified against 4 distinct assessment dimensions:
+1. **System State**: Verifies runtime container health, port availability, disk space, and process tree.
+2. **Root Cause / Diagnosis**: Detects evidence of diagnostic commands (`ps`, `lsof`, `df`, `ss`) and hypothesis articulation.
+3. **Remediation**: Validates specific corrective actions and checks for unintended side effects or service disruption.
+4. **Explanation**: Assesses technical rationale, root cause explanation, fix justification, and prevention strategies.
 
 ---
 
-## Progressive Learning Levels
+## Progressive Learning Levels (25 Production Scenarios)
 
-The lab features 5 difficulty levels that govern scenario complexity, symptom ambiguity, investigation guidance, hint behavior, and post-mortem depth:
+The lab provides 5 difficulty levels across 5 incident categories (`CPU`, `MEMORY`, `DISK`, `NETWORK`, `PERMISSIONS`):
 
 | Level | Target Audience | Investigation Guidance | Hint Behavior | Post-Mortem Format | Scoring Rules |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -53,98 +102,69 @@ The lab features 5 difficulty levels that govern scenario complexity, symptom am
 
 ---
 
-## Scenario Catalog (25 Production Scenarios)
+## Security Model & Single-Host Boundaries
 
-### Level 1: EASY (Foundational Commands & Clear Failures)
-1. `cpu_001`: Runaway Background Worker Pegging CPU (`ps`, `top`, `kill`)
-2. `mem_001`: Memory Leak Approaching Out-Of-Memory (`free`, `vmstat`, `pkill`)
-3. `disk_001`: Rapid Disk Space Exhaustion From Unrotated Debug Log (`df`, `du`, `rm`)
-4. `perm_001`: Web Application Permission Denied on Local Cache (`ls -la`, `chmod`)
-5. `easy_005`: Essential Web Application Service Inactive (`systemctl status`, `systemctl start`)
-
-### Level 2: MODERATE (Multi-Command Correlation)
-6. `inode_001`: Disk Full Error While Storage Space Shows 90% Free (`df -i`, `find`)
-7. `service_001`: Web App CrashLoop Due to Missing Runtime Cache Directory (`systemctl`, `journalctl`, `mkdir`)
-8. `net_001`: Web Application Port Conflict (`ss -tulpn`, `lsof`, `kill`)
-9. `log_001`: Application Log Diagnosis of Downstream Database Failure (`tail`, `/etc/hosts`, `curl`)
-10. `mod_005`: Application Log File Permission Mismatch Preventing Service Boot (`chown`, `systemctl`)
-
-### Level 3: FLUENT (Realistic Production Incidents)
-11. `fluent_001`: Service Startup Aborted by Stale Process Lock (`/run/services/*.pid`, `ss`)
-12. `fluent_002`: Storage Capacity Alert Persists After File Deletion (`lsof +L1`, `kill`)
-13. `fluent_003`: Port Configuration Drift Breaking Reverse Proxy Routing (`netstat`, `config.conf`)
-14. `fluent_004`: CPU Starvation Caused by Disguised Worker Process (`ps aux`, `htop`, `kill`)
-15. `fluent_005`: Downstream Database Port Mismatch Under Heavy Traffic (`/etc/app/payment.conf`, `curl`)
-
-### Level 4: ADVANCED (Multi-Signal & Cross-Layer Failures)
-16. `adv_001`: Cascading Dual-Layer Resolution Failure Across Microservices (`/etc/hosts` + `/etc/app/payment.conf`)
-17. `adv_002`: Silent Read-Only Mount Degrading Cache Subsystem (`mount -o remount,rw`)
-18. `adv_003`: Configuration File Permission Drift Compounded by Zombie Port Binding (`chmod` + `pkill`)
-19. `adv_004`: Unreaped Zombie Flood Saturating Process Table (`ps -el`, `ppid`, `kill -9 <parent>`)
-20. `adv_005`: Stealth Memory Leak With High Kernel Buffer Allocation (`free -m`, `vmstat`, `pkill`)
-
-### Level 5: EXPERT (Ambiguous Production Outages & SRE Reasoning)
-21. `expert_001`: P1 Outage: Intermittent Downstream Timeout with Phantom Gateway Failures
-22. `expert_002`: Catastrophic Rollout Abort: Multi-Service Deadlock and Corrupted State
-23. `expert_003`: Silent Disk Full: Shadowed File Descriptors and Unlinked Storage Ingestion
-24. `expert_004`: Production Application Freezing Due to Ephemeral Inode Exhaustion
-25. `expert_005`: Stealth Rogue Miner Disguised as Core Systemd Worker
+* **Docker Socket Mounting**: The web backend communicates with the local Docker daemon via `/var/run/docker.sock` to orchestrate isolated sandboxes.
+* **Single-Host Boundary**: Mounting the Docker socket grants administrative control over the host Docker daemon. In a single-host local environment (development/self-hosted lab), this provides the necessary flexibility to dynamically spin up and tear down sandboxes.
+* **Production Multi-Tenant Recommendations**: In a public multi-tenant SaaS environment:
+  * Run Docker daemon in rootless mode or use user namespaces (`userns-remap`).
+  * Run sandboxes inside lightweight microVMs (e.g., AWS Firecracker, Kata Containers).
+  * Isolate user workloads across Kubernetes pods with dedicated network policies and gVisor/runsc runtimes.
 
 ---
 
-## Prerequisites
+## Local Setup & Quick Start
 
-* **OS**: Linux or WSL2 (Ubuntu 20.04/22.04+)
-* **Docker & Docker Compose**: Docker Engine v20.10+ and Docker Compose v2+
-* **Python**: Python 3.10+
-
----
-
-## Quick Start Guide
-
-### 1. Start the Lab Environment
+### 1. Build and Start Services
 ```bash
-# Clone the repository (if not already cloned)
+# Clone the repository
 git clone <repo>
 cd DevOps-Labs/linux-troubleshooting-lab
 
-# Build and start both the sandbox container and the web UI
+# Build and start web application and base sandbox container
 docker compose up -d --build
 
-# Verify services are running
+# Verify running services
 docker compose ps
 ```
 
-### 2. Access the Web UI
-Open **`http://localhost:8088`** in your browser. Both the web UI dashboard and interactive `linuxlab-sandbox` terminal are immediately ready.
-
-### 3. Practice Flow
-1. Select a difficulty level on the top bar (`EASY`, `MODERATE`, `FLUENT`, `ADVANCED`, or `EXPERT`).
-2. Click **Random Incident** (or select a scenario from the **Scenario Library**).
-3. Investigate in the browser terminal connected directly to `linuxlab-sandbox`.
-4. Run commands to diagnose root cause and apply remediation.
-5. Click **Evaluate**, describe your findings, and view your score and structured post-mortem.
-6. Check the **Progress** tab to track your Level Mastery (`████████░░`) and success rates.
+### 2. Access the Platform
+Open **`http://localhost:8088`** in your browser:
+1. Click **Register** to create your personal account.
+2. Select your difficulty level (`EASY` through `EXPERT`).
+3. Click **Start Incident** to spawn your dedicated sandbox.
+4. Troubleshoot live in the integrated browser terminal.
+5. Click **Evaluate**, submit your explanation, and inspect your dimensional score and postmortem.
+6. Track your progress across sessions in the **Progress** and **History** tabs.
 
 ---
 
-## Running the Automated Test Suites
+## Running Automated Test Suites
 
-The lab includes comprehensive unit test suites:
+The test suite validates multi-user authentication, user isolation, sandbox lifecycle, state evaluation, progressive levels, and scenario injection:
 
 ```bash
-# 1. Run the original 8 scenarios end-to-end injection & verify tests
-python3 -m unittest tests/test_scenarios.py
+# Run all 38 tests across all test modules
+python3 -m unittest discover -s tests -v
 
-# 2. Run the progressive level architecture, scoring, and registry tests
-python3 -m unittest tests/test_progressive_levels.py
+# Run multi-user auth and isolation tests specifically (16 tests)
+python3 -m unittest tests/test_auth_and_isolation.py -v
+
+# Run 4-dimensional state-based evaluation tests (8 tests)
+python3 -m unittest tests/test_evaluation.py -v
+
+# Run progressive level mechanics tests (6 tests)
+python3 -m unittest tests/test_progressive_levels.py -v
+
+# Run scenario injection & verification tests (8 tests)
+python3 -m unittest tests/test_scenarios.py -v
 ```
 
 ---
 
-## CLI Reference
+## CLI Reference (Local Single-User Mode)
 
-You can also operate the lab directly from the terminal CLI:
+The lab can also be operated entirely via terminal CLI for local debugging:
 
 ```bash
 # Start container

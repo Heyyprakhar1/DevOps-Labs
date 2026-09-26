@@ -7,6 +7,7 @@ from linuxlab.evaluation.scoring import IncidentScorer
 from linuxlab.evaluation.reports import IncidentReportGenerator
 from linuxlab.evaluation.evidence import EvidenceCollector
 from linuxlab.evaluation.dimensional import DimensionalEvaluator
+from linuxlab.db import db
 from linuxlab.ai.ollama import OllamaClient
 
 class IncidentEvaluator:
@@ -79,20 +80,45 @@ class IncidentEvaluator:
         # 7. Structured Post-Mortem matching the level
         structured_postmortem = IncidentReportGenerator.get_structured_sections(scenario)
 
-        # 8. Record in persistent history
-        StateManager.record_history_entry(
-            scenario=scenario,
-            solved=is_solved,
-            score=score_data["score"],
-            duration_sec=duration_sec,
-            hints_used=hints_used,
-            user_explanation=user_explanation,
-            dimensional_data=dimensional_eval
-        )
-
-        # 9. Clear session if solved
-        if is_solved:
-            StateManager.clear_session()
+        # 8. Record in persistent history (User DB or legacy StateManager)
+        user_id = session.get("user_id")
+        if user_id:
+            try:
+                db.record_attempt(
+                    user_id=user_id,
+                    scenario_id=scenario.id,
+                    category=getattr(scenario, "category", ""),
+                    level=sc_level,
+                    difficulty=getattr(scenario, "difficulty", sc_level),
+                    status="SOLVED" if is_solved else "UNRESOLVED",
+                    score=score_data["score"],
+                    duration_sec=duration_sec,
+                    hints_used=hints_used,
+                    command_history=commands,
+                    user_explanation=user_explanation,
+                    technical_resolution=dimensional_eval.get("technical_resolution", "PASS" if is_solved else "FAIL"),
+                    overall_verdict=dimensional_eval.get("overall_verdict", "INCIDENT RESOLVED" if is_solved else "INCIDENT UNRESOLVED"),
+                    dimensions=dimensional_eval.get("dimensions", {}),
+                    evidence=evidence,
+                    postmortem=structured_postmortem
+                )
+                if is_solved:
+                    db.close_incident_session(user_id, status="completed")
+            except Exception as e:
+                import logging
+                logging.getLogger("linuxlab.evaluator").error(f"Failed to record attempt in DB: {e}")
+        else:
+            StateManager.record_history_entry(
+                scenario=scenario,
+                solved=is_solved,
+                score=score_data["score"],
+                duration_sec=duration_sec,
+                hints_used=hints_used,
+                user_explanation=user_explanation,
+                dimensional_data=dimensional_eval
+            )
+            if is_solved:
+                StateManager.clear_session()
 
         return {
             "scenario": scenario,

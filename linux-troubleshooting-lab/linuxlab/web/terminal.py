@@ -11,15 +11,17 @@ from fastapi import WebSocket, WebSocketDisconnect
 from linuxlab.config import CONTAINER_NAME
 from linuxlab.lab.controller import LabController
 from linuxlab.state.manager import StateManager
+from linuxlab.db import db
 
 logger = logging.getLogger("linuxlab.terminal")
 
 class TerminalSession:
     """Manages an interactive PTY session attached to the Linux Lab Docker container."""
 
-    def __init__(self, websocket: WebSocket, container_name: str = CONTAINER_NAME):
+    def __init__(self, websocket: WebSocket, container_name: str = CONTAINER_NAME, user_id: Optional[str] = None):
         self.websocket = websocket
         self.container_name = container_name
+        self.user_id = user_id
         self.master_fd: Optional[int] = None
         self.proc: Optional[subprocess.Popen] = None
         self.controller = LabController(container_name)
@@ -172,7 +174,10 @@ class TerminalSession:
             if char in ("\r", "\n"):
                 cmd = self.current_cmd_buffer.strip()
                 if cmd:
-                    StateManager.record_command(cmd)
+                    if self.user_id:
+                        db.record_command_to_session(self.user_id, cmd)
+                    else:
+                        StateManager.record_command(cmd)
                 self.current_cmd_buffer = ""
             elif char in ("\x7f", "\x08"):
                 self.current_cmd_buffer = self.current_cmd_buffer[:-1]

@@ -34,38 +34,68 @@ class LabController:
         """Start or build the lab container if not running."""
         if self.is_running():
             return True
-        try:
-            res = subprocess.run(
-                ["docker", "compose", "-f", str(COMPOSE_FILE), "up", "-d"],
-                cwd=str(ROOT_DIR),
-                capture_output=True,
-                text=True,
-                check=False
-            )
-            if res.returncode != 0:
+        if self.container_name == CONTAINER_NAME:
+            try:
+                res = subprocess.run(
+                    ["docker", "compose", "-f", str(COMPOSE_FILE), "up", "-d"],
+                    cwd=str(ROOT_DIR),
+                    capture_output=True,
+                    text=True,
+                    check=False
+                )
+                if res.returncode != 0:
+                    return False
+                # Wait up to 15s for container to become ready
+                for _ in range(30):
+                    if self.is_healthy():
+                        return True
+                    time.sleep(0.5)
                 return False
-            # Wait up to 15s for container to become ready
-            for _ in range(30):
-                if self.is_healthy():
-                    return True
-                time.sleep(0.5)
-            return False
-        except Exception:
-            return False
+            except Exception:
+                return False
+        else:
+            try:
+                res = subprocess.run(
+                    ["docker", "start", self.container_name],
+                    capture_output=True,
+                    text=True,
+                    check=False
+                )
+                if res.returncode != 0:
+                    return False
+                for _ in range(20):
+                    if self.is_healthy():
+                        return True
+                    time.sleep(0.5)
+                return False
+            except Exception:
+                return False
 
     def stop(self) -> bool:
         """Stop the lab container."""
-        try:
-            res = subprocess.run(
-                ["docker", "compose", "-f", str(COMPOSE_FILE), "stop"],
-                cwd=str(ROOT_DIR),
-                capture_output=True,
-                text=True,
-                check=False
-            )
-            return res.returncode == 0
-        except Exception:
-            return False
+        if self.container_name == CONTAINER_NAME:
+            try:
+                res = subprocess.run(
+                    ["docker", "compose", "-f", str(COMPOSE_FILE), "stop"],
+                    cwd=str(ROOT_DIR),
+                    capture_output=True,
+                    text=True,
+                    check=False
+                )
+                return res.returncode == 0
+            except Exception:
+                return False
+        else:
+            try:
+                res = subprocess.run(
+                    ["docker", "stop", self.container_name],
+                    capture_output=True,
+                    text=True,
+                    check=False
+                )
+                return res.returncode == 0
+            except Exception:
+                return False
 
     def reset(self) -> bool:
         """Run clean_state.sh inside the container to reset it to baseline."""

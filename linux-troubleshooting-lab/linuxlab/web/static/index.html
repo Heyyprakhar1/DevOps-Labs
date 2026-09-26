@@ -21,9 +21,17 @@
       <button class="btn btn-primary" id="btn-random-incident">🚨 Random Incident</button>
       <button class="btn btn-nav active" data-tab="incident-pane">💻 Terminal Workspace</button>
       <button class="btn btn-nav" data-tab="library-pane">📚 Scenario Library</button>
-      <button class="btn btn-nav" data-tab="progress-pane">📊 Progress</button>
+      <button class="btn btn-nav" data-tab="progress-pane">📊 Dashboard</button>
+      <button class="btn btn-nav" data-tab="history-pane">📜 History</button>
       <button class="btn btn-nav" data-tab="interview-pane">🎙️ Interview Mode</button>
       <button class="btn btn-danger" id="btn-reset-env">🔄 Reset Lab</button>
+      <div id="auth-nav-area" style="display: flex; align-items: center; margin-left: 8px;">
+        <button class="btn btn-sm btn-primary" id="btn-open-auth">Sign In / Register</button>
+        <div id="auth-user-pill" style="display: none; align-items: center; gap: 8px;">
+          <span class="badge" style="background: var(--bg-tertiary); color: var(--accent-cyan); font-weight: 600; font-size: 13px;" id="user-display-name">👤 User</span>
+          <button class="btn btn-sm" id="btn-logout" style="padding: 2px 8px; font-size: 11px;">Logout</button>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -189,34 +197,45 @@
       </table>
     </section>
 
-    <!-- Tab 3: Progress Dashboard -->
+    <!-- Tab 3: User Dashboard & Progress -->
     <section id="progress-pane" class="tab-pane full-page-pane">
+      <div class="user-welcome-card" id="user-welcome-card" style="background: linear-gradient(135deg, rgba(22, 27, 34, 0.95), rgba(33, 38, 45, 0.95)); border: 1px solid var(--border-color); border-radius: 8px; padding: 18px 24px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h2 id="dashboard-welcome-msg" style="font-size: 20px; color: var(--text-bright); font-weight: 700; letter-spacing: -0.3px;">WELCOME, GUEST</h2>
+          <p id="dashboard-welcome-sub" style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">Sign in to save attempts, track level mastery, and access your personal learning history.</p>
+        </div>
+        <div class="overall-score-pill" style="background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 18px; text-align: center; min-width: 140px;">
+          <div style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: var(--text-muted); letter-spacing: 0.5px;">Overall Score</div>
+          <div id="dashboard-overall-score" style="font-size: 24px; font-weight: 800; color: var(--accent-yellow); margin-top: 2px;">--</div>
+        </div>
+      </div>
+
       <div class="page-title-row">
-        <h2 class="page-title">Linux Troubleshooting Progress</h2>
+        <h3 style="font-size: 16px; color: var(--text-bright);">Learning Metrics Overview</h3>
         <button class="btn" id="btn-refresh-progress">↻ Refresh</button>
       </div>
 
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-label">Total Incidents</div>
+          <div class="stat-label">Total Incidents Attempted</div>
           <div class="stat-value" id="stat-total">0</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Solved</div>
+          <div class="stat-label">Incidents Solved</div>
           <div class="stat-value" style="color: var(--accent-green);" id="stat-solved">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Resolution Rate</div>
+          <div class="stat-value" style="color: var(--accent-cyan);" id="stat-rate">0%</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Average Score</div>
           <div class="stat-value" style="color: var(--accent-yellow);" id="stat-avg">0/100</div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">Hints Used</div>
-          <div class="stat-value" id="stat-hints-used">0</div>
-        </div>
       </div>
 
       <!-- Progressive Level Mastery Table -->
-      <h3 style="font-size: 16px; color: var(--text-bright); margin-top: 20px; margin-bottom: 10px;">Overall Level Progress</h3>
+      <h3 style="font-size: 16px; color: var(--text-bright); margin-top: 20px; margin-bottom: 10px;">Difficulty Level Progress</h3>
       <table class="data-table" id="level-progress-table">
         <thead>
           <tr>
@@ -233,6 +252,23 @@
       <div id="recommended-level-box" style="margin-top: 14px; background-color: rgba(63, 185, 80, 0.1); border: 1px solid var(--accent-green); padding: 14px; border-radius: 6px; font-size: 13px;">
         <strong>Recommended Practice Level:</strong> <span id="recommended-level-text" style="font-weight: 700; color: var(--accent-green);">EASY</span>
       </div>
+
+      <!-- Recent Attempts Table -->
+      <h3 style="font-size: 16px; color: var(--text-bright); margin-top: 24px; margin-bottom: 10px;">Recent Attempts</h3>
+      <table class="data-table" id="recent-attempts-table">
+        <thead>
+          <tr>
+            <th>Incident</th>
+            <th>Level</th>
+            <th>Status</th>
+            <th>Score</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody id="recent-attempts-tbody">
+          <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No attempts recorded yet.</td></tr>
+        </tbody>
+      </table>
 
       <h3 style="font-size: 16px; color: var(--text-bright); margin-top: 24px; margin-bottom: 10px;">Category Mastery Breakdown</h3>
       <table class="data-table">
@@ -251,6 +287,33 @@
       <div id="weak-areas-box" style="margin-top: 14px; display: none; background-color: rgba(210, 153, 34, 0.1); border: 1px solid var(--accent-yellow); padding: 14px; border-radius: 6px; font-size: 13px;">
         <strong>Recommended Practice Focus Areas:</strong> <span id="weak-areas-text"></span>
       </div>
+    </section>
+
+    <!-- Tab 4: History Pane -->
+    <section id="history-pane" class="tab-pane full-page-pane">
+      <div class="page-title-row">
+        <h2 class="page-title">Personal Incident Attempt History</h2>
+        <button class="btn" id="btn-refresh-history">↻ Refresh</button>
+      </div>
+
+      <div id="history-empty-msg" style="display: none; padding: 30px; text-align: center; color: var(--text-muted); background: var(--bg-secondary); border-radius: 6px; border: 1px solid var(--border-color); margin-top: 14px;">
+        No completed attempts recorded yet. Solve an incident to view your historical evaluations and postmortems.
+      </div>
+
+      <table class="data-table" id="history-table" style="margin-top: 14px;">
+        <thead>
+          <tr>
+            <th>Incident</th>
+            <th>Level</th>
+            <th>Status</th>
+            <th>Score</th>
+            <th>Duration</th>
+            <th>Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="history-tbody"></tbody>
+      </table>
     </section>
 
     <!-- Tab 4: Interview Mode -->
@@ -390,6 +453,34 @@
       <div class="modal-footer" id="eval-footer" style="display: none;">
         <button class="btn btn-primary" id="btn-eval-next">Next Incident</button>
         <button class="btn" id="btn-close-eval-footer">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auth Modal (Sign In / Register) -->
+  <div class="modal-overlay" id="auth-modal">
+    <div class="modal-box" style="max-width: 420px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="auth-modal-title">Sign In to Linux Lab</h3>
+        <button class="modal-close" id="btn-close-auth">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="auth-tabs" style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+          <button class="btn btn-sm btn-nav active" id="tab-auth-login">Sign In</button>
+          <button class="btn btn-sm btn-nav" id="tab-auth-register">Create Account</button>
+        </div>
+        <div id="auth-error-msg" style="display: none; background: rgba(248, 81, 73, 0.15); border: 1px solid var(--accent-red); color: var(--accent-red); padding: 8px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 12px;"></div>
+        <form id="auth-form" onsubmit="return false;">
+          <div style="margin-bottom: 12px;">
+            <label style="display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: var(--text-muted);">Username</label>
+            <input type="text" id="auth-username" class="form-input" placeholder="e.g. devops_hero" autocomplete="username" style="width: 100%; padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-bright); font-size: 14px;" required>
+          </div>
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: var(--text-muted);">Password</label>
+            <input type="password" id="auth-password" class="form-input" placeholder="Minimum 6 characters" autocomplete="current-password" style="width: 100%; padding: 8px 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-bright); font-size: 14px;" required>
+          </div>
+          <button class="btn btn-primary" id="btn-submit-auth" style="width: 100%; justify-content: center;">Sign In</button>
+        </form>
       </div>
     </div>
   </div>
