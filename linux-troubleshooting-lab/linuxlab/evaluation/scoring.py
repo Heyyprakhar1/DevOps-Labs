@@ -11,6 +11,15 @@ class IncidentScorer:
         3: 15,  # Level 3 hint: -15 points
     }
 
+    # Level-aware dimensional weight allocations
+    LEVEL_WEIGHTS = {
+        "EASY": {"technical": 70, "diagnosis": 15, "explanation": 15},
+        "MODERATE": {"technical": 60, "diagnosis": 20, "explanation": 20},
+        "FLUENT": {"technical": 60, "diagnosis": 20, "explanation": 20},
+        "ADVANCED": {"technical": 50, "diagnosis": 25, "explanation": 25},
+        "EXPERT": {"technical": 50, "diagnosis": 25, "explanation": 25},
+    }
+
     @classmethod
     def calculate(
         cls,
@@ -20,12 +29,17 @@ class IncidentScorer:
         explanation_quality_score: int = 0,
         level: str = "EASY",
         command_count: int = 0,
-        user_explanation: str = ""
+        user_explanation: str = "",
+        dimensional_eval: Optional[Dict[str, Any]] = None,
+        **kwargs
     ) -> Dict[str, Any]:
         """
-        Calculates final score out of 100 with level-aware rules.
+        Calculates final score out of 100 with level-aware rules and dimensional breakdown.
         If unsolved, maximum score is 0.
         """
+        level_upper = level.upper()
+        weights = cls.LEVEL_WEIGHTS.get(level_upper, {"technical": 60, "diagnosis": 20, "explanation": 20})
+
         if not is_solved:
             return {
                 "score": 0,
@@ -35,10 +49,16 @@ class IncidentScorer:
                 "command_penalty": 0,
                 "reasoning_bonus": 0,
                 "breakdown": "Incident unresolved in lab environment.",
+                "technical_resolution": "FAIL",
+                "overall_verdict": "INCIDENT UNRESOLVED",
+                "dimensional_breakdown": {
+                    "technical": {"score": 0, "max": weights["technical"], "weight": f"{weights['technical']}%", "status": "FAIL"},
+                    "diagnosis": {"score": 0, "max": weights["diagnosis"], "weight": f"{weights['diagnosis']}%", "status": "FAIL"},
+                    "explanation": {"score": 0, "max": weights["explanation"], "weight": f"{weights['explanation']}%", "status": "FAIL"},
+                }
             }
 
         score = cls.BASE_SCORE
-        level_upper = level.upper()
 
         # Deduct for hints
         hint_deduction = sum(cls.HINT_PENALTIES.get(h, 10) for h in hints_used)
@@ -69,6 +89,30 @@ class IncidentScorer:
 
         score = max(0, min(100, score + reasoning_bonus))
 
+        # Dimensional breakdown (Technical 50-70%, Diagnosis 15-25%, Explanation 15-25%)
+        tech_status = "PASS" if is_solved else "FAIL"
+        tech_base = weights["technical"]
+        tech_score = max(0, tech_base - hint_deduction - time_deduction - command_penalty)
+
+        diag_status = "PASS"
+        diag_score = weights["diagnosis"]
+        expl_status = "PASS"
+        expl_score = weights["explanation"]
+
+        if dimensional_eval and "dimensions" in dimensional_eval:
+            dims = dimensional_eval["dimensions"]
+            diag_status = dims.get("root_cause", {}).get("status", "PASS")
+            if "PARTIAL" in diag_status:
+                diag_score = max(5, int(weights["diagnosis"] * 0.6))
+            elif diag_status in ["UNKNOWN", "FAIL"]:
+                diag_score = max(0, int(weights["diagnosis"] * 0.2))
+
+            expl_status = dims.get("explanation", {}).get("status", "PASS")
+            if expl_status == "PARTIAL":
+                expl_score = max(5, int(weights["explanation"] * 0.6))
+            elif expl_status in ["NEEDS IMPROVEMENT", "FAIL"]:
+                expl_score = max(0, int(weights["explanation"] * 0.2)) if user_explanation else 0
+
         return {
             "score": score,
             "base": cls.BASE_SCORE,
@@ -80,4 +124,11 @@ class IncidentScorer:
             "command_count": command_count,
             "level": level_upper,
             "duration_sec": round(duration_sec, 1),
+            "technical_resolution": "PASS",
+            "overall_verdict": "INCIDENT RESOLVED",
+            "dimensional_breakdown": {
+                "technical": {"score": tech_score, "max": weights["technical"], "weight": f"{weights['technical']}%", "status": tech_status},
+                "diagnosis": {"score": diag_score, "max": weights["diagnosis"], "weight": f"{weights['diagnosis']}%", "status": diag_status},
+                "explanation": {"score": expl_score, "max": weights["explanation"], "weight": f"{weights['explanation']}%", "status": expl_status},
+            }
         }

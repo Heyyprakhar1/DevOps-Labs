@@ -499,6 +499,26 @@ function initActions() {
     document.getElementById("btn-random-incident").click();
   });
 
+  const btnToggleEv = document.getElementById("btn-toggle-evidence");
+  const evContainer = document.getElementById("evidence-container");
+  if (btnToggleEv && evContainer) {
+    btnToggleEv.addEventListener("click", () => {
+      const isHidden = evContainer.style.display === "none";
+      evContainer.style.display = isHidden ? "block" : "none";
+      btnToggleEv.textContent = isHidden ? "Hide Evidence" : "Show Evidence";
+    });
+  }
+
+  const btnTogglePm = document.getElementById("btn-toggle-postmortem");
+  const pmContainer = document.getElementById("report-postmortem-container");
+  if (btnTogglePm && pmContainer) {
+    btnTogglePm.addEventListener("click", () => {
+      const isHidden = pmContainer.style.display === "none";
+      pmContainer.style.display = isHidden ? "flex" : "none";
+      btnTogglePm.textContent = isHidden ? "Hide Postmortem" : "View Postmortem";
+    });
+  }
+
   // Filter Library
   const filterCat = document.getElementById("filter-category");
   if (filterCat) filterCat.addEventListener("change", fetchLibrary);
@@ -568,6 +588,20 @@ function openEvaluateModal() {
   document.getElementById("eval-report").style.display = "none";
   document.getElementById("eval-footer").style.display = "none";
   document.getElementById("eval-explanation-input").value = "";
+
+  const evContainer = document.getElementById("evidence-container");
+  const btnToggleEv = document.getElementById("btn-toggle-evidence");
+  if (evContainer) evContainer.style.display = "none";
+  if (btnToggleEv) btnToggleEv.textContent = "Show Evidence";
+
+  const pmContainer = document.getElementById("report-postmortem-container");
+  const btnTogglePm = document.getElementById("btn-toggle-postmortem");
+  if (pmContainer) pmContainer.style.display = "none";
+  if (btnTogglePm) btnTogglePm.textContent = "View Postmortem";
+
+  const feedbackSection = document.getElementById("report-feedback-section");
+  if (feedbackSection) feedbackSection.style.display = "none";
+
   document.getElementById("evaluate-modal").classList.add("open");
 }
 
@@ -581,12 +615,14 @@ function renderEvaluationReport(report) {
   document.getElementById("eval-footer").style.display = "flex";
 
   const badge = document.getElementById("report-badge");
-  if (report.is_solved) {
-    badge.textContent = "✅ SOLVED";
+  const isSolved = Boolean(report.is_solved);
+  const verdict = report.overall_verdict || (isSolved ? "INCIDENT RESOLVED" : "INCIDENT UNRESOLVED");
+  if (isSolved) {
+    badge.textContent = `✅ ${verdict}`;
     badge.className = "report-result-badge result-solved";
     document.getElementById("btn-eval-next").style.display = "inline-flex";
   } else {
-    badge.textContent = "❌ UNRESOLVED / FAILED";
+    badge.textContent = `❌ ${verdict}`;
     badge.className = "report-result-badge result-failed";
     document.getElementById("btn-eval-next").style.display = "none";
   }
@@ -594,9 +630,95 @@ function renderEvaluationReport(report) {
   document.getElementById("report-score").textContent = `${report.score}/100`;
   document.getElementById("report-signal").textContent = report.feedback_msg;
 
+  // Explanation feedback callout (shows when system state passed but explanation needs improvement)
+  const feedbackSection = document.getElementById("report-feedback-section");
+  const feedbackEl = document.getElementById("report-explanation-feedback");
+  if (feedbackSection && feedbackEl) {
+    if (report.explanation_feedback) {
+      feedbackSection.style.display = "block";
+      feedbackEl.textContent = report.explanation_feedback;
+    } else {
+      feedbackSection.style.display = "none";
+    }
+  }
+
+  // Four Dimensions Grid
+  const dimGrid = document.getElementById("eval-dimensions-grid");
+  if (dimGrid) {
+    dimGrid.innerHTML = "";
+    const dims = report.dimensions || {};
+    const dimKeys = [
+      { key: "system_state", title: "System State" },
+      { key: "root_cause", title: "Root Cause / Diagnosis" },
+      { key: "remediation", title: "Remediation" },
+      { key: "explanation", title: "Explanation" }
+    ];
+
+    dimKeys.forEach(({ key, title }) => {
+      const data = dims[key] || { status: "UNKNOWN", detail: "" };
+      const status = (data.status || "UNKNOWN").toUpperCase();
+      let badgeClass = "badge-unknown";
+      if (status === "PASS") badgeClass = "badge-pass";
+      else if (status === "PARTIAL") badgeClass = "badge-partial";
+      else if (status === "NEEDS IMPROVEMENT") badgeClass = "badge-needs-improvement";
+      else if (status === "FAIL") badgeClass = "badge-fail";
+
+      const scoreText = (data.score !== undefined && data.max_score) ? ` (${data.score}/${data.max_score} pts)` : "";
+
+      const card = document.createElement("div");
+      card.className = "dim-card";
+      card.innerHTML = `
+        <div class="dim-header">
+          <span class="dim-title">${data.name || title}</span>
+          <span class="dim-badge ${badgeClass}">${status}</span>
+        </div>
+        <div class="dim-detail">${data.detail || ""}${scoreText}</div>
+      `;
+      dimGrid.appendChild(card);
+    });
+  }
+
+  // Machine Evidence Summary Table
+  const evidenceContainer = document.getElementById("evidence-container");
+  const btnToggleEv = document.getElementById("btn-toggle-evidence");
+  if (evidenceContainer) {
+    evidenceContainer.style.display = "none";
+    if (btnToggleEv) btnToggleEv.textContent = "Show Evidence";
+
+    if (report.evidence && report.evidence.summary && report.evidence.summary.length > 0) {
+      let html = `<table class="evidence-table">
+        <thead>
+          <tr>
+            <th>Metric / Subsystem</th>
+            <th>Before Fix</th>
+            <th>After Fix</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>`;
+      report.evidence.summary.forEach((item) => {
+        const isPass = item.status === "PASS" || item.status === "HEALTHY";
+        const badgeCls = isPass ? "badge-pass" : "badge-fail";
+        html += `<tr>
+          <td><strong>${item.metric}</strong><br><span style="color: var(--text-muted); font-size: 11px;">${item.detail || ""}</span></td>
+          <td style="color: var(--accent-red); font-family: monospace;">${item.before || "N/A"}</td>
+          <td style="color: var(--accent-green); font-family: monospace;">${item.after || "N/A"}</td>
+          <td><span class="dim-badge ${badgeCls}">${item.status}</span></td>
+        </tr>`;
+      });
+      html += `</tbody></table>`;
+      evidenceContainer.innerHTML = html;
+    } else {
+      evidenceContainer.innerHTML = `<div style="font-size: 12px; color: var(--text-muted); padding: 8px;">No machine evidence recorded.</div>`;
+    }
+  }
+
   // Render structured postmortem sections matching level
   const pmContainer = document.getElementById("report-postmortem-container");
+  const btnTogglePm = document.getElementById("btn-toggle-postmortem");
   if (pmContainer) {
+    pmContainer.style.display = "none";
+    if (btnTogglePm) btnTogglePm.textContent = "View Postmortem";
     pmContainer.innerHTML = "";
     if (report.structured_postmortem && report.structured_postmortem.sections) {
       const rawSecs = report.structured_postmortem.sections;

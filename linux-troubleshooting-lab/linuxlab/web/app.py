@@ -17,6 +17,8 @@ from linuxlab.scenarios.registry import registry
 from linuxlab.state.manager import StateManager
 from linuxlab.evaluation.scoring import IncidentScorer
 from linuxlab.evaluation.reports import IncidentReportGenerator
+from linuxlab.evaluation.evaluator import IncidentEvaluator
+from linuxlab.evaluation.evidence import EvidenceCollector
 from linuxlab.ai.ollama import OllamaClient
 from linuxlab.interview.questions import INTERVIEW_SCENARIOS, get_interview_scenarios_for_level
 from linuxlab.web.terminal import TerminalSession
@@ -36,6 +38,7 @@ app.add_middleware(
 )
 
 controller = LabController()
+evaluator = IncidentEvaluator(controller)
 ai_client = OllamaClient()
 
 # Request Models
@@ -142,7 +145,8 @@ async def start_random_incident(req: RandomIncidentRequest = Body(default=Random
     if not injected:
         raise HTTPException(status_code=500, detail="Failed to inject incident fault into container.")
 
-    StateManager.start_session(scenario.id)
+    initial_evidence = EvidenceCollector.capture(controller, scenario)
+    StateManager.start_session(scenario.id, initial_evidence=initial_evidence)
     return {
         "status": "injected",
         "incident": scenario.get_briefing(),
@@ -163,7 +167,8 @@ async def start_specific_incident(scenario_id: str):
     if not injected:
         raise HTTPException(status_code=500, detail="Failed to inject incident fault into container.")
 
-    StateManager.start_session(scenario.id)
+    initial_evidence = EvidenceCollector.capture(controller, scenario)
+    StateManager.start_session(scenario.id, initial_evidence=initial_evidence)
     return {
         "status": "injected",
         "incident": scenario.get_briefing(),
@@ -218,7 +223,7 @@ async def get_hint():
 
 @app.post("/api/incidents/evaluate")
 async def evaluate_incident(req: EvaluateRequest = Body(default=EvaluateRequest())):
-    """Evaluate actual container state and return structured, level-aware post-mortem report."""
+    """Evaluate actual container state and return 4-dimensional evaluation with machine evidence."""
     session = StateManager.get_session()
     if not session:
         raise HTTPException(status_code=400, detail="No active incident session to evaluate.")
@@ -227,69 +232,11 @@ async def evaluate_incident(req: EvaluateRequest = Body(default=EvaluateRequest(
     if not scenario:
         raise HTTPException(status_code=404, detail="Scenario not found.")
 
-    # Verify actual container state
-    is_solved, feedback_msg, metric_details = scenario.verify(controller)
-
-    start_time = session.get("start_time", time.time())
-    duration_sec = max(1.0, time.time() - start_time)
-    hints_used = session.get("hints_used", [])
-    commands = session.get("command_history", [])
     explanation = req.explanation.strip() if req.explanation else ""
-
-    sc_level = getattr(scenario, "level", getattr(scenario, "difficulty", "EASY")).upper()
-
-    score_data = IncidentScorer.calculate(
-        is_solved=is_solved,
-        hints_used=hints_used,
-        duration_sec=duration_sec,
-        level=sc_level,
-        command_count=len(commands),
-        user_explanation=explanation
-    )
-
-    # Optional AI critique
-    ai_critique = ""
-    if explanation:
-        ai_res = ai_client.critique_explanation(scenario, explanation)
-        if ai_res:
-            ai_critique = ai_res
-        else:
-            ai_critique = (
-                f"Deterministic Verification: System state confirms root cause resolution. "
-                f"Container verification signal: {feedback_msg}"
-            )
-
-    # Structured post-mortem breakdown matching the level
-    structured_postmortem = IncidentReportGenerator.get_structured_sections(scenario)
-
-    # Save to history
-    StateManager.record_history_entry(
-        scenario=scenario,
-        solved=is_solved,
-        score=score_data["score"],
-        duration_sec=duration_sec,
-        hints_used=hints_used,
-        user_explanation=explanation
-    )
-
-    if is_solved:
-        StateManager.clear_session()
-
-    return {
-        "is_solved": is_solved,
-        "score": score_data["score"],
-        "breakdown": score_data,
-        "feedback_msg": feedback_msg,
-        "level": sc_level,
-        "expected_root_cause": scenario.expected_root_cause,
-        "expected_fix": scenario.expected_fix,
-        "learning_points": scenario.learning_points,
-        "structured_postmortem": structured_postmortem,
-        "user_explanation": explanation,
-        "ai_critique": ai_critique,
-        "command_history": commands,
-        "duration_sec": round(duration_sec, 1),
-    }
+    eval_result = evaluator.evaluate_session(session, scenario, user_explanation=explanation)
+    # Ensure scenario instance is not in JSON response
+    eval_result.pop("scenario", None)
+    return eval_result
 
 @app.post("/api/incidents/reset")
 async def reset_environment():

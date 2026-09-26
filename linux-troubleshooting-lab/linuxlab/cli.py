@@ -17,6 +17,7 @@ from linuxlab.lab.reset import reset_lab
 from linuxlab.scenarios.registry import registry
 from linuxlab.state.manager import StateManager
 from linuxlab.evaluation.evaluator import IncidentEvaluator
+from linuxlab.evaluation.evidence import EvidenceCollector
 from linuxlab.interview.runner import InterviewRunner
 
 console = Console()
@@ -92,8 +93,9 @@ def cmd_random(args):
         console.print(f"[bold red]✘ Failed to inject fault for {scenario.id}. Please run 'linuxlab reset'.[/bold red]")
         return
 
-    # Start new session
-    StateManager.start_session(scenario.id)
+    # Start new session with baseline evidence
+    initial_evidence = EvidenceCollector.capture(controller, scenario)
+    StateManager.start_session(scenario.id, initial_evidence=initial_evidence)
 
     # Format incident briefing
     briefing = scenario.get_briefing()
@@ -142,7 +144,8 @@ def cmd_load(args):
         console.print(f"[bold red]✘ Failed to inject fault for {scenario.id}. Please run 'linuxlab reset'.[/bold red]")
         return
 
-    StateManager.start_session(scenario.id)
+    initial_evidence = EvidenceCollector.capture(controller, scenario)
+    StateManager.start_session(scenario.id, initial_evidence=initial_evidence)
     briefing = scenario.get_briefing()
     symptoms_text = "\n".join(f"  • {s}" for s in briefing["symptoms"])
     body = (

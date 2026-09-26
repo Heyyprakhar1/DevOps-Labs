@@ -1,21 +1,125 @@
 import time
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from linuxlab.lab.controller import LabController
 from linuxlab.scenarios.registry import registry
 from linuxlab.state.manager import StateManager
 from linuxlab.evaluation.scoring import IncidentScorer
 from linuxlab.evaluation.reports import IncidentReportGenerator
+from linuxlab.evaluation.evidence import EvidenceCollector
+from linuxlab.evaluation.dimensional import DimensionalEvaluator
 from linuxlab.ai.ollama import OllamaClient
 
 class IncidentEvaluator:
-    """Evaluates the learner's incident resolution against actual lab state."""
+    """Evaluates the learner's incident resolution across four dimensions with machine evidence."""
 
     def __init__(self, controller: LabController):
         self.controller = controller
         self.ai = OllamaClient()
 
+    def evaluate_session(
+        self,
+        session: Dict[str, Any],
+        scenario: Any,
+        user_explanation: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Core evaluation method determining resolution via machine check of sandbox state,
+        evaluating four dimensions independently, and compiling machine evidence.
+        """
+        # 1. Inspect ground-truth state of the sandbox container
+        is_solved, feedback_msg, metric_details = scenario.verify(self.controller)
+
+        # 2. Timing and hints
+        start_time = session.get("start_time", time.time())
+        duration_sec = max(1.0, time.time() - start_time)
+        hints_used = session.get("hints_used", [])
+        commands = session.get("command_history", [])
+        sc_level = getattr(scenario, "level", getattr(scenario, "difficulty", "EASY")).upper()
+
+        # 3. Capture after evidence and compare with before state
+        after_evidence = EvidenceCollector.capture(self.controller, scenario)
+        before_evidence = session.get("initial_evidence") or EvidenceCollector.get_baseline_evidence(scenario)
+        evidence = EvidenceCollector.compare(before_evidence, after_evidence, scenario, is_solved)
+
+        # 4. Multi-dimensional evaluation (System State, Root Cause, Remediation, Explanation)
+        dimensional_eval = DimensionalEvaluator.evaluate(
+            scenario=scenario,
+            is_solved=is_solved,
+            feedback_msg=feedback_msg,
+            user_explanation=user_explanation,
+            command_history=commands,
+            duration_sec=duration_sec,
+            level=sc_level
+        )
+
+        # 5. Compute level-aware score with dimensional breakdown
+        score_data = IncidentScorer.calculate(
+            is_solved=is_solved,
+            hints_used=hints_used,
+            duration_sec=duration_sec,
+            level=sc_level,
+            command_count=len(commands),
+            user_explanation=user_explanation,
+            dimensional_eval=dimensional_eval
+        )
+
+        # 6. Optional AI Critique
+        ai_critique = ""
+        explanation = user_explanation.strip() if user_explanation else ""
+        if explanation:
+            ai_res = self.ai.critique_explanation(scenario, explanation)
+            if ai_res:
+                ai_critique = ai_res
+            else:
+                ai_critique = (
+                    f"Deterministic Verification: System state confirms root cause resolution. "
+                    f"Key verification signal: {feedback_msg}"
+                )
+
+        # 7. Structured Post-Mortem matching the level
+        structured_postmortem = IncidentReportGenerator.get_structured_sections(scenario)
+
+        # 8. Record in persistent history
+        StateManager.record_history_entry(
+            scenario=scenario,
+            solved=is_solved,
+            score=score_data["score"],
+            duration_sec=duration_sec,
+            hints_used=hints_used,
+            user_explanation=user_explanation,
+            dimensional_data=dimensional_eval
+        )
+
+        # 9. Clear session if solved
+        if is_solved:
+            StateManager.clear_session()
+
+        return {
+            "scenario": scenario,
+            "is_solved": is_solved,
+            "technical_resolution": dimensional_eval["technical_resolution"],
+            "overall_verdict": dimensional_eval["overall_verdict"],
+            "overall_message": dimensional_eval["overall_message"],
+            "explanation_feedback": dimensional_eval["explanation_feedback"],
+            "dimensions": dimensional_eval["dimensions"],
+            "evidence": evidence,
+            "feedback_msg": feedback_msg,
+            "metric_details": metric_details,
+            "score": score_data["score"],
+            "breakdown": score_data,
+            "level": sc_level,
+            "expected_root_cause": scenario.expected_root_cause,
+            "expected_fix": scenario.expected_fix,
+            "learning_points": scenario.learning_points,
+            "structured_postmortem": structured_postmortem,
+            "user_explanation": user_explanation,
+            "ai_critique": ai_critique,
+            "command_history": commands,
+            "duration_sec": round(duration_sec, 1),
+        }
+
     def evaluate_current(self, user_explanation: str = "") -> Optional[Dict[str, Any]]:
-        """Evaluate the currently active incident session."""
+        """Evaluate the currently active incident session and display terminal report."""
         session = StateManager.get_session()
         if not session:
             return None
@@ -25,64 +129,17 @@ class IncidentEvaluator:
         if not scenario:
             return None
 
-        # Verify actual state in the lab container
-        is_solved, feedback_msg, metric_details = scenario.verify(self.controller)
+        result = self.evaluate_session(session, scenario, user_explanation=user_explanation)
 
-        # Calculate timing and hints
-        start_time = session.get("start_time", time.time())
-        duration_sec = max(1.0, time.time() - start_time)
-        hints_used = session.get("hints_used", [])
-
-        # Compute deterministic score
-        commands = session.get("command_history", [])
-        score_data = IncidentScorer.calculate(
-            is_solved=is_solved,
-            hints_used=hints_used,
-            duration_sec=duration_sec,
-            level=getattr(scenario, "level", getattr(scenario, "difficulty", "EASY")),
-            command_count=len(commands),
-            user_explanation=user_explanation
-        )
-
-        # Optional AI Critique if explanation provided
-        ai_critique = ""
-        if user_explanation.strip():
-            ai_res = self.ai.critique_explanation(scenario, user_explanation)
-            if ai_res:
-                ai_critique = ai_res
-            else:
-                # Deterministic feedback fallback
-                ai_critique = (
-                    f"Deterministic Evaluation: Lab verification confirmed root cause resolution. "
-                    f"Key verification signal: {feedback_msg}"
-                )
-
-        # Record result in persistent history
-        StateManager.record_history_entry(
-            scenario=scenario,
-            solved=is_solved,
-            score=score_data["score"],
-            duration_sec=duration_sec,
-            hints_used=hints_used,
-            user_explanation=user_explanation
-        )
-
-        # If solved, clean up active session
-        if is_solved:
-            StateManager.clear_session()
-
-        # Display rich report
+        # Display rich CLI report
         IncidentReportGenerator.print_report(
             scenario=scenario,
-            is_solved=is_solved,
-            score_data=score_data,
+            is_solved=result["is_solved"],
+            score_data=result["breakdown"],
             user_explanation=user_explanation,
-            ai_critique=ai_critique
+            ai_critique=result.get("ai_critique", ""),
+            dimensional_data=result,
+            evidence=result.get("evidence")
         )
 
-        return {
-            "scenario": scenario,
-            "is_solved": is_solved,
-            "feedback": feedback_msg,
-            "score_data": score_data,
-        }
+        return result

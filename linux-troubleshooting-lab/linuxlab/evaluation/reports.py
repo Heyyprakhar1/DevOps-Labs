@@ -90,9 +90,12 @@ class IncidentReportGenerator:
         is_solved: bool,
         score_data: Dict[str, Any],
         user_explanation: str = "",
-        ai_critique: str = ""
+        ai_critique: str = "",
+        dimensional_data: Optional[Dict[str, Any]] = None,
+        evidence: Optional[Dict[str, Any]] = None
     ) -> str:
-        status_str = "[bold green]SOLVED[/bold green]" if is_solved else "[bold red]FAILED / UNRESOLVED[/bold red]"
+        verdict = "INCIDENT RESOLVED" if is_solved else "INCIDENT UNRESOLVED"
+        status_str = f"[bold green]✔ {verdict}[/bold green]" if is_solved else f"[bold red]✘ {verdict}[/bold red]"
         score = score_data.get("score", 0)
         level = getattr(scenario, "level", getattr(scenario, "difficulty", "EASY")).upper()
 
@@ -107,11 +110,51 @@ class IncidentReportGenerator:
         report_lines = [
             f"[bold cyan]Incident:[/bold cyan] {scenario.title} ({scenario.id})",
             f"[bold cyan]Category:[/bold cyan] {scenario.category.upper()}  |  [bold cyan]Level:[/bold cyan] [bold yellow]{level}[/bold yellow]",
-            f"[bold cyan]Result:[/bold cyan] {status_str}",
+            f"[bold cyan]Overall Verdict:[/bold cyan] {status_str}",
             f"[bold cyan]Time to Resolution:[/bold cyan] {time_str}",
             f"[bold cyan]Hints Used:[/bold cyan] {hints_count} (-{hint_deduction} pts)",
             f"[bold cyan]Score:[/bold cyan] [bold yellow]{score}/100[/bold yellow]\n",
         ]
+
+        # Four Dimensions
+        dims = (dimensional_data or {}).get("dimensions", {})
+        if dims:
+            report_lines.append("[bold cyan underline]=== EVALUATION DIMENSIONS ===[/bold cyan underline]")
+            dim_order = ["system_state", "root_cause", "remediation", "explanation"]
+            dim_labels = {
+                "system_state": "Technical Resolution",
+                "root_cause": "Root Cause / Diagnosis",
+                "remediation": "Remediation Applied",
+                "explanation": "Explanation Quality"
+            }
+            for d_key in dim_order:
+                if d_key in dims:
+                    item = dims[d_key]
+                    st = item.get("status", "PASS")
+                    color = "green" if st == "PASS" else ("yellow" if "PARTIAL" in st else ("cyan" if st == "UNKNOWN" else "red"))
+                    label = dim_labels.get(d_key, item.get("name", d_key))
+                    report_lines.append(f"  • [bold white]{label}:[/bold white] [{color}]{st}[/{color}] - {item.get('detail', '')}")
+            report_lines.append("")
+
+        # Explanation Feedback Callout
+        feedback = (dimensional_data or {}).get("explanation_feedback", "")
+        if feedback:
+            report_lines.extend([
+                "[bold white underline]Evaluation Feedback:[/bold white underline]",
+                f"[italic]{feedback}[/italic]\n"
+            ])
+
+        # Machine Evidence Summary
+        if evidence and "summary" in evidence:
+            report_lines.append("[bold cyan underline]=== MACHINE VERIFICATION EVIDENCE ===[/bold cyan underline]")
+            for item in evidence.get("summary", []):
+                metric = item.get("metric", "")
+                before_val = item.get("before", "")
+                after_val = item.get("after", "")
+                status_val = item.get("status", "")
+                color = "green" if status_val in ["PASS", "HEALTHY", "RESOLVED", "IMPROVED"] else "red"
+                report_lines.append(f"  • [bold white]{metric}:[/bold white] {before_val} ➜ [bold {color}]{after_val}[/bold {color}] ([{color}]{status_val}[/{color}])")
+            report_lines.append("")
 
         structured = cls.get_structured_sections(scenario)
         report_lines.append(f"[bold magenta underline]=== {structured['title'].upper()} ===[/bold magenta underline]")
@@ -145,9 +188,19 @@ class IncidentReportGenerator:
         is_solved: bool,
         score_data: Dict[str, Any],
         user_explanation: str = "",
-        ai_critique: str = ""
+        ai_critique: str = "",
+        dimensional_data: Optional[Dict[str, Any]] = None,
+        evidence: Optional[Dict[str, Any]] = None
     ):
-        body = cls.format_report(scenario, is_solved, score_data, user_explanation, ai_critique)
+        body = cls.format_report(
+            scenario=scenario,
+            is_solved=is_solved,
+            score_data=score_data,
+            user_explanation=user_explanation,
+            ai_critique=ai_critique,
+            dimensional_data=dimensional_data,
+            evidence=evidence
+        )
         title = "LINUX INCIDENT POST-MORTEM & EVALUATION"
         border_style = "green" if is_solved else "red"
         console.print(Panel(body, title=f"[bold]{title}[/bold]", border_style=border_style, expand=False))

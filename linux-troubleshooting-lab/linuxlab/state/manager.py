@@ -1,6 +1,6 @@
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from linuxlab.config import HISTORY_FILE, SESSION_FILE, CATEGORIES
@@ -20,14 +20,15 @@ class StateManager:
             return None
 
     @classmethod
-    def start_session(cls, scenario_id: str) -> Dict[str, Any]:
+    def start_session(cls, scenario_id: str, initial_evidence: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Start a new incident session."""
         session_data = {
             "scenario_id": scenario_id,
             "start_time": time.time(),
             "hints_used": [],
             "command_history": [],
-            "status": "active"
+            "status": "active",
+            "initial_evidence": initial_evidence or {},
         }
         with open(SESSION_FILE, "w") as f:
             json.dump(session_data, f, indent=2)
@@ -88,7 +89,8 @@ class StateManager:
         score: int,
         duration_sec: float,
         hints_used: List[int],
-        user_explanation: str = ""
+        user_explanation: str = "",
+        dimensional_data: Optional[Dict[str, Any]] = None
     ):
         """Append an incident result to history.json."""
         history = cls.load_history()
@@ -98,7 +100,7 @@ class StateManager:
             "category": scenario.category,
             "difficulty": getattr(scenario, "difficulty", lvl),
             "level": lvl,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "solved": solved,
             "score": score,
             "hints_count": len(hints_used),
@@ -106,6 +108,10 @@ class StateManager:
             "duration_sec": round(duration_sec, 1),
             "user_explanation": user_explanation,
         }
+        if dimensional_data:
+            entry["technical_resolution"] = dimensional_data.get("technical_resolution", "PASS" if solved else "FAIL")
+            entry["overall_verdict"] = dimensional_data.get("overall_verdict", "INCIDENT RESOLVED" if solved else "INCIDENT UNRESOLVED")
+            entry["dimensions"] = dimensional_data.get("dimensions", {})
         history.append(entry)
         with open(HISTORY_FILE, "w") as f:
             json.dump(history, f, indent=2)
