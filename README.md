@@ -1,8 +1,12 @@
-# Practice-Labs
+# DevOps-Labs
 
 A curated collection of hands-on, failure-driven practice laboratories for DevOps, Cloud, and Site Reliability Engineers.
 
-Rather than static tutorials, walkthroughs, or read-only reference repositories, **Practice-Labs** is designed around realistic engineering incident environments. Each lab provides an isolated sandbox where learners investigate symptoms, formulate hypotheses, gather diagnostic evidence, remediate failures, validate recovery, and write post-mortem documentation.
+* **GitHub Repository**: [https://github.com/Heyyprakhar1/DevOps-Labs](https://github.com/Heyyprakhar1/DevOps-Labs)
+* **Clone (SSH)**: `git clone git@github.com:Heyyprakhar1/DevOps-Labs.git`
+* **Clone (HTTPS)**: `git clone https://github.com/Heyyprakhar1/DevOps-Labs.git`
+
+Rather than static tutorials, walkthroughs, or read-only reference repositories, **DevOps-Labs** is designed around realistic engineering incident environments. Each lab provides an isolated sandbox where learners investigate symptoms, formulate hypotheses, gather diagnostic evidence, remediate failures, validate recovery, and write post-mortem documentation.
 
 ---
 
@@ -63,7 +67,7 @@ A browser-based, Docker-isolated Linux troubleshooting environment where learner
 
 ## Learning Model: Progressive Difficulty
 
-Difficulty in Practice-Labs is not measured by memorizing obscure flags or commands. Instead, difficulty scales along dimensions of **system complexity, signal ambiguity, and cognitive load**:
+Difficulty in DevOps-Labs is not measured by memorizing obscure flags or commands. Instead, difficulty scales along dimensions of **system complexity, signal ambiguity, and cognitive load**:
 
 ```
 EASY ──────► MODERATE ──────► FLUENT ──────► ADVANCED ──────► EXPERT
@@ -90,7 +94,7 @@ As difficulty increases:
 ## Conceptual Repository Structure
 
 ```text
-Practice-Labs/
+DevOps-Labs/
 ├── README.md                      # Repository overview & learning model
 ├── linux-troubleshooting-lab/     # Available: Linux troubleshooting sandbox & Web UI
 ├── docker-labs/                   # Planned: Container runtime & networking triage
@@ -111,8 +115,9 @@ Practice-Labs/
 To begin practicing with the available Linux lab:
 
 ```bash
-# 1. Navigate to the Linux troubleshooting lab
-cd linux-troubleshooting-lab/
+# 1. Clone the repository
+git clone git@github.com:Heyyprakhar1/DevOps-Labs.git
+cd DevOps-Labs/linux-troubleshooting-lab/
 
 # 2. Review the lab-specific documentation
 cat README.md
