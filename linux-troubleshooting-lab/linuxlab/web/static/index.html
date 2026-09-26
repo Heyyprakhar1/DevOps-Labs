@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Linux Troubleshooting Lab — Progressive DevOps Practice</title>
+  <link rel="stylesheet" href="/static/vendor/xterm.min.css">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header>
+    <div class="logo-area">
+      <span class="logo-icon">🐧</span>
+      <span class="logo-title">Linux Troubleshooting Lab</span>
+      <span class="logo-badge" id="header-level-badge">EASY</span>
+    </div>
+
+    <div class="nav-buttons">
+      <button class="btn btn-primary" id="btn-random-incident">🚨 Random Incident</button>
+      <button class="btn btn-nav active" data-tab="incident-pane">💻 Terminal Workspace</button>
+      <button class="btn btn-nav" data-tab="library-pane">📚 Scenario Library</button>
+      <button class="btn btn-nav" data-tab="progress-pane">📊 Progress</button>
+      <button class="btn btn-nav" data-tab="interview-pane">🎙️ Interview Mode</button>
+      <button class="btn btn-danger" id="btn-reset-env">🔄 Reset Lab</button>
+    </div>
+  </header>
+
+  <!-- Progressive Learning Level Bar -->
+  <div class="level-bar">
+    <div class="level-selector-wrap">
+      <span class="level-bar-label">LEVEL:</span>
+      <div class="level-btn-group" id="level-btn-group">
+        <button class="btn-level active" data-level="EASY">EASY</button>
+        <button class="btn-level" data-level="MODERATE">MODERATE</button>
+        <button class="btn-level" data-level="FLUENT">FLUENT</button>
+        <button class="btn-level" data-level="ADVANCED">ADVANCED</button>
+        <button class="btn-level" data-level="EXPERT">EXPERT</button>
+      </div>
+    </div>
+    <div class="level-focus-wrap">
+      <span class="level-badge-tag" id="level-active-badge">EASY</span>
+      <span class="level-focus-desc" id="level-active-desc">Focus: Linux fundamentals + guided troubleshooting</span>
+    </div>
+  </div>
+
+  <!-- Live Status Bar -->
+  <div class="status-bar">
+    <div class="status-left">
+      <div>
+        <span class="status-indicator green" id="status-dot"></span>
+        SANDBOX: <span class="status-val" id="status-sandbox">RUNNING</span>
+      </div>
+      <div>WEB-APP: <span class="status-val" id="status-webapp">ACTIVE</span></div>
+      <div>PAYMENT-API: <span class="status-val" id="status-payment">ACTIVE</span></div>
+    </div>
+    <div class="status-right">
+      <div>LEVEL: <span class="status-val" id="status-active-level">EASY</span></div>
+      <div>INCIDENT: <span class="status-val" id="status-incident">NONE</span></div>
+      <div>TIMER: <span class="status-val" id="status-timer">00:00</span></div>
+      <div>HINTS: <span class="status-val" id="status-hints">0/3</span></div>
+    </div>
+  </div>
+
+  <!-- Main Viewports -->
+  <main>
+
+    <!-- Tab 1: Incident & Terminal Workspace -->
+    <section id="incident-pane" class="tab-pane active">
+      <aside class="incident-sidebar">
+        <div class="sidebar-header">
+          <div class="incident-badge-row">
+            <span class="badge badge-cat" id="incident-cat">SYSTEM</span>
+            <span class="badge badge-level" id="incident-level">EASY</span>
+            <span class="badge badge-p1" id="incident-sev">SEV-1</span>
+          </div>
+          <h2 class="incident-title" id="incident-title">No Active Incident</h2>
+        </div>
+
+        <div class="sidebar-body">
+          <div id="no-incident-msg">
+            <p style="color: var(--text-muted); font-size: 13px;">
+              No incident currently loaded in the sandbox container.<br><br>
+              Click <strong>Random Incident</strong> above or pick a scenario from the <strong>Scenario Library</strong> to inject an incident fault.
+            </p>
+          </div>
+
+          <div id="incident-details" style="display: none; flex-direction: column; gap: 14px;">
+            <div>
+              <div class="section-label">Incident Context</div>
+              <div class="context-box" id="incident-context"></div>
+            </div>
+
+            <div id="guidance-section" style="display: none;">
+              <div class="section-label" style="color: var(--accent-yellow);">Investigation Guidance</div>
+              <div class="guidance-box" id="incident-guidance"></div>
+            </div>
+
+            <div id="tools-section" style="display: none;">
+              <div class="section-label">Recommended Tools</div>
+              <div class="tools-tags" id="incident-tools"></div>
+            </div>
+
+            <div>
+              <div class="section-label">Reported Symptoms</div>
+              <ul class="symptoms-list" id="incident-symptoms"></ul>
+            </div>
+
+            <div>
+              <div class="section-label">Your Objective</div>
+              <div class="objective-box" id="incident-objective"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="sidebar-controls" id="sidebar-controls" style="display: none;">
+          <div class="action-row">
+            <button class="btn btn-warning" id="btn-request-hint">💡 Hint</button>
+            <button class="btn btn-primary" id="btn-evaluate-incident">✅ Evaluate</button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Terminal Area -->
+      <section class="terminal-area">
+        <div class="terminal-header">
+          <div class="terminal-title">
+            <span>Terminal:</span>
+            <span class="terminal-host">devops@prod-app-server-01:~$</span>
+            <span style="font-size: 11px; color: var(--text-muted);">(linuxlab-sandbox)</span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn" style="padding: 2px 8px; font-size: 11px;" id="btn-term-clear">Clear</button>
+            <button class="btn" style="padding: 2px 8px; font-size: 11px;" id="btn-term-reconnect">Reconnect</button>
+          </div>
+        </div>
+
+        <div class="terminal-container" id="terminal-container"></div>
+
+        <!-- Command History Drawer -->
+        <div class="command-history-bar" id="history-toggle">
+          <span>📜 Session Command History (<span id="cmd-count">0</span> commands)</span>
+          <span id="history-arrow">▲</span>
+        </div>
+        <div class="command-history-content" id="history-content"></div>
+      </section>
+    </section>
+
+    <!-- Tab 2: Scenario Library -->
+    <section id="library-pane" class="tab-pane full-page-pane">
+      <div class="page-title-row">
+        <h2 class="page-title">Scenario Library</h2>
+        <div class="filter-bar">
+          <select id="filter-level">
+            <option value="">All Levels</option>
+            <option value="EASY">Easy</option>
+            <option value="MODERATE">Moderate</option>
+            <option value="FLUENT">Fluent</option>
+            <option value="ADVANCED">Advanced</option>
+            <option value="EXPERT">Expert</option>
+          </select>
+          <select id="filter-category">
+            <option value="">All Categories</option>
+            <option value="cpu">CPU</option>
+            <option value="memory">Memory</option>
+            <option value="disk">Disk</option>
+            <option value="inodes">Inodes</option>
+            <option value="permissions">Permissions</option>
+            <option value="services">Services</option>
+            <option value="networking">Networking</option>
+            <option value="logs">Logs</option>
+            <option value="processes">Processes</option>
+          </select>
+        </div>
+      </div>
+
+      <table class="data-table" id="scenarios-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Category</th>
+            <th>Level</th>
+            <th>Title</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="scenarios-tbody"></tbody>
+      </table>
+    </section>
+
+    <!-- Tab 3: Progress Dashboard -->
+    <section id="progress-pane" class="tab-pane full-page-pane">
+      <div class="page-title-row">
+        <h2 class="page-title">Linux Troubleshooting Progress</h2>
+        <button class="btn" id="btn-refresh-progress">↻ Refresh</button>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Incidents</div>
+          <div class="stat-value" id="stat-total">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Solved</div>
+          <div class="stat-value" style="color: var(--accent-green);" id="stat-solved">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Average Score</div>
+          <div class="stat-value" style="color: var(--accent-yellow);" id="stat-avg">0/100</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Hints Used</div>
+          <div class="stat-value" id="stat-hints-used">0</div>
+        </div>
+      </div>
+
+      <!-- Progressive Level Mastery Table -->
+      <h3 style="font-size: 16px; color: var(--text-bright); margin-top: 20px; margin-bottom: 10px;">Overall Level Progress</h3>
+      <table class="data-table" id="level-progress-table">
+        <thead>
+          <tr>
+            <th>Level</th>
+            <th>Progress Bar</th>
+            <th>Solved / Target</th>
+            <th>Success Rate</th>
+            <th>Avg Score</th>
+          </tr>
+        </thead>
+        <tbody id="level-progress-tbody"></tbody>
+      </table>
+
+      <div id="recommended-level-box" style="margin-top: 14px; background-color: rgba(63, 185, 80, 0.1); border: 1px solid var(--accent-green); padding: 14px; border-radius: 6px; font-size: 13px;">
+        <strong>Recommended Practice Level:</strong> <span id="recommended-level-text" style="font-weight: 700; color: var(--accent-green);">EASY</span>
+      </div>
+
+      <h3 style="font-size: 16px; color: var(--text-bright); margin-top: 24px; margin-bottom: 10px;">Category Mastery Breakdown</h3>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Attempted</th>
+            <th>Solved</th>
+            <th>Success Rate</th>
+            <th>Avg Score</th>
+          </tr>
+        </thead>
+        <tbody id="progress-tbody"></tbody>
+      </table>
+
+      <div id="weak-areas-box" style="margin-top: 14px; display: none; background-color: rgba(210, 153, 34, 0.1); border: 1px solid var(--accent-yellow); padding: 14px; border-radius: 6px; font-size: 13px;">
+        <strong>Recommended Practice Focus Areas:</strong> <span id="weak-areas-text"></span>
+      </div>
+    </section>
+
+    <!-- Tab 4: Interview Mode -->
+    <section id="interview-pane" class="tab-pane full-page-pane">
+      <div class="page-title-row">
+        <h2 class="page-title">SRE Troubleshooting Interview Mode</h2>
+        <div style="display: flex; gap: 8px;">
+          <select id="interview-filter-level">
+            <option value="">All Levels</option>
+            <option value="EASY">Easy</option>
+            <option value="MODERATE">Moderate</option>
+            <option value="FLUENT">Fluent</option>
+            <option value="ADVANCED">Advanced</option>
+            <option value="EXPERT">Expert</option>
+          </select>
+          <button class="btn btn-primary" id="btn-new-interview">Next Question</button>
+        </div>
+      </div>
+
+      <div class="interview-card" id="interview-card">
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span class="badge badge-cat" id="interview-topic">CPU & Load Average</span>
+          <span class="badge badge-level" id="interview-level">FLUENT</span>
+        </div>
+        <h3 id="interview-question" style="font-size: 15px; color: var(--text-bright); white-space: pre-line;"></h3>
+
+        <div>
+          <label style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 6px;">Your Diagnostic Reasoning:</label>
+          <textarea id="interview-answer-input" placeholder="Explain your hypothesis, what commands you would run, and why..."></textarea>
+        </div>
+
+        <button class="btn btn-primary" id="btn-submit-interview-ans" style="align-self: flex-start;">Submit Answer</button>
+
+        <div id="interview-follow-ups" style="display: none; flex-direction: column; gap: 14px;"></div>
+
+        <div id="interview-result-box" style="display: none; flex-direction: column; gap: 14px;">
+          <div class="report-section">
+            <div class="report-label">Senior Staff SRE Benchmark</div>
+            <div class="report-value" id="interview-sre-breakdown" style="white-space: pre-line; background-color: var(--bg-primary); padding: 12px; border-radius: 6px; border: 1px solid var(--border-color);"></div>
+          </div>
+          <div id="interview-ai-box" style="display: none;">
+            <div class="report-label">AI Senior SRE Feedback</div>
+            <div class="report-ai" id="interview-ai-feedback"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Modals -->
+
+  <!-- Hint Modal -->
+  <div class="modal-overlay" id="hint-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 class="modal-title">Progressive Investigation Hints</h3>
+        <button class="modal-close" id="btn-close-hint">&times;</button>
+      </div>
+      <div class="modal-body" id="hint-modal-body"></div>
+      <div class="modal-footer">
+        <button class="btn btn-warning" id="btn-unlock-next-hint">Unlock Next Hint</button>
+        <button class="btn" id="btn-close-hint-footer">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Evaluate / Post-Mortem Modal -->
+  <div class="modal-overlay" id="evaluate-modal">
+    <div class="modal-box" style="max-width: 750px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="eval-modal-title">Incident Resolution Evaluation</h3>
+        <button class="modal-close" id="btn-close-eval">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="eval-form">
+          <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">
+            Before running system verification, summarize your root cause diagnosis and remediation steps:
+          </p>
+          <textarea id="eval-explanation-input" placeholder="e.g., Identified runaway rogue process on port 8080 using ss -tulpn, terminated it with kill, and restarted web-app.service."></textarea>
+          <div style="margin-top: 14px; display: flex; justify-content: flex-end;">
+            <button class="btn btn-primary" id="btn-submit-eval">Run Evaluation</button>
+          </div>
+        </div>
+
+        <div id="eval-report" style="display: none; flex-direction: column; gap: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="report-result-badge" id="report-badge">SOLVED</div>
+            <div class="report-score" id="report-score">85/100</div>
+          </div>
+
+          <div class="report-section">
+            <div class="report-label">Verification Signal</div>
+            <div class="report-value" id="report-signal"></div>
+          </div>
+
+          <!-- Structured Level-Specific Postmortem Sections -->
+          <div id="report-postmortem-container" style="display: flex; flex-direction: column; gap: 10px;"></div>
+
+          <div class="report-section" id="report-ai-section" style="display: none;">
+            <div class="report-label">AI Senior SRE Feedback</div>
+            <div class="report-ai" id="report-ai-critique"></div>
+          </div>
+
+          <div class="report-section">
+            <div class="report-label">Key DevOps Takeaways</div>
+            <ul id="report-learnings" style="padding-left: 20px; font-size: 13px; color: var(--text-primary);"></ul>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" id="eval-footer" style="display: none;">
+        <button class="btn btn-primary" id="btn-eval-next">Next Incident</button>
+        <button class="btn" id="btn-close-eval-footer">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/static/vendor/xterm.min.js"></script>
+  <script src="/static/vendor/xterm-addon-fit.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

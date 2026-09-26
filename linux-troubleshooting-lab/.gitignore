@@ -1,0 +1,27 @@
+# Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.env
+.venv
+venv/
+env/
+
+# Runtime session and history data
+linuxlab/state/history.json
+linuxlab/state/current_session.json
+*.log
+
+# Pytest / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor and swap artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

@@ -1,0 +1,56 @@
+#!/bin/bash
+# Realistic journalctl shim for Linux Troubleshooting Lab
+
+LINES=20
+UNIT=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -u|--unit)
+            UNIT="$2"
+            shift 2
+            ;;
+        -n|--lines)
+            LINES="$2"
+            shift 2
+            ;;
+        -xeu)
+            UNIT="$2"
+            shift 2
+            ;;
+        -f|--follow)
+            FOLLOW=1
+            shift
+            ;;
+        *)
+            if [[ "$1" == -u* ]]; then
+                UNIT="${1#-u}"
+            fi
+            shift
+            ;;
+    esac
+done
+
+UNIT="${UNIT%.service}"
+
+if [ -n "$UNIT" ]; then
+    case "$UNIT" in
+        web-app)
+            LOG_FILE="/var/log/app/web_app.log"
+            ;;
+        payment-api)
+            LOG_FILE="/var/log/app/payment.log"
+            ;;
+        *)
+            LOG_FILE="/var/log/syslog"
+            ;;
+    esac
+else
+    LOG_FILE="/var/log/app/web_app.log"
+fi
+
+if [ -f "$LOG_FILE" ]; then
+    tail -n "$LINES" "$LOG_FILE"
+else
+    echo "-- No entries --"
+fi

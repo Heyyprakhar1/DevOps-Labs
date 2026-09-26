@@ -1,0 +1,18 @@
+services:
+  sandbox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: linuxlab-sandbox:latest
+    container_name: linuxlab-sandbox
+    hostname: prod-app-server-01
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    cap_add:
+      - SYS_PTRACE
+      - SYS_ADMIN
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      - TERM=xterm-256color

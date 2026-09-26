@@ -1,0 +1,182 @@
+#!/bin/bash
+# Realistic systemctl shim for Linux Troubleshooting Lab
+# Emulates systemd commands for services like web-app and payment-api
+
+SERVICE_DIR="/run/services"
+mkdir -p "$SERVICE_DIR"
+
+COMMAND="$1"
+UNIT="$2"
+
+# Strip .service if provided
+UNIT="${UNIT%.service}"
+
+get_service_cmd() {
+    case "$1" in
+        web-app)
+            echo "/usr/bin/python3 /opt/services/web_app.py"
+            ;;
+        payment-api)
+            echo "/usr/bin/python3 /opt/services/payment_api.py"
+            ;;
+        *)
+            echo ""
+            ;;
+    esac
+}
+
+get_service_desc() {
+    case "$1" in
+        web-app)
+            echo "Internal Web Application Service"
+            ;;
+        payment-api)
+            echo "Core Payment API Microservice"
+            ;;
+        *)
+            echo "Application Service $1"
+            ;;
+    esac
+}
+
+get_service_log() {
+    case "$1" in
+        web-app)
+            echo "/var/log/app/web_app.log"
+            ;;
+        payment-api)
+            echo "/var/log/app/payment.log"
+            ;;
+        *)
+            echo "/var/log/syslog"
+            ;;
+    esac
+}
+
+do_status() {
+    local unit="$1"
+    local pid_file="$SERVICE_DIR/${unit}.pid"
+    local desc=$(get_service_desc "$unit")
+    local log_file=$(get_service_log "$unit")
+    local cmd=$(get_service_cmd "$unit")
+
+    if [ -z "$cmd" ]; then
+        echo "Unit ${unit}.service could not be found." >&2
+        return 4
+    fi
+
+    if [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file" 2>/dev/null)" 2>/dev/null; then
+        local pid=$(cat "$pid_file")
+        local mem=$(ps -o rss= -p "$pid" 2>/dev/null | awk '{printf "%.1fM", $1/1024}')
+        [ -z "$mem" ] && mem="14.2M"
+        
+        echo "● ${unit}.service - ${desc}"
+        echo "     Loaded: loaded (/etc/systemd/system/${unit}.service; enabled; vendor preset: enabled)"
+        echo "     Active: active (running) since $(date -R)"
+        echo "   Main PID: ${pid} (python3)"
+        echo "      Tasks: 1 (limit: 4915)"
+        echo "     Memory: ${mem}"
+        echo "     CGroup: /system.slice/${unit}.service"
+        echo "             └─${pid} ${cmd}"
+        echo ""
+        if [ -f "$log_file" ]; then
+            tail -n 5 "$log_file" | sed "s/^/$(date '+%b %d %H:%M:%S') $(hostname) ${unit}[${pid}]: /"
+        fi
+        return 0
+    else
+        echo "● ${unit}.service - ${desc}"
+        echo "     Loaded: loaded (/etc/systemd/system/${unit}.service; enabled; vendor preset: enabled)"
+        echo "     Active: inactive (dead)"
+        echo ""
+        if [ -f "$log_file" ]; then
+            tail -n 5 "$log_file" | sed "s/^/$(date '+%b %d %H:%M:%S') $(hostname) ${unit}: /"
+        fi
+        return 3
+    fi
+}
+
+do_stop() {
+    local unit="$1"
+    local pid_file="$SERVICE_DIR/${unit}.pid"
+    if [ -f "$pid_file" ]; then
+        local pid=$(cat "$pid_file")
+        kill -15 "$pid" 2>/dev/null || kill -9 "$pid" 2>/dev/null
+        rm -f "$pid_file"
+    fi
+    # Also kill any lingering python processes for this unit
+    pkill -f "/opt/services/${unit//-/_}.py" 2>/dev/null
+    return 0
+}
+
+do_start() {
+    local unit="$1"
+    local pid_file="$SERVICE_DIR/${unit}.pid"
+    local cmd=$(get_service_cmd "$unit")
+    local log_file=$(get_service_log "$unit")
+
+    if [ -z "$cmd" ]; then
+        echo "Failed to start ${unit}.service: Unit ${unit}.service not found." >&2
+        return 1
+    fi
+
+    # Check if already running
+    if [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file" 2>/dev/null)" 2>/dev/null; then
+        return 0
+    fi
+
+    mkdir -p "$(dirname "$log_file")"
+    
+    # Run the command and capture immediate startup failure
+    local err_tmp=$(mktemp)
+    $cmd >> "$log_file" 2> "$err_tmp" &
+    local new_pid=$!
+    echo "$new_pid" > "$pid_file"
+
+    # Give it half a second to verify it doesn't immediately crash
+    sleep 0.5
+    if ! kill -0 "$new_pid" 2>/dev/null; then
+        local err_msg=$(cat "$err_tmp")
+        rm -f "$err_tmp" "$pid_file"
+        echo "Job for ${unit}.service failed because the control process exited with error code." >&2
+        echo "See \"systemctl status ${unit}.service\" and \"journalctl -xeu ${unit}.service\" for details." >&2
+        [ -n "$err_msg" ] && echo "Error: $err_msg" >> "$log_file"
+        return 1
+    fi
+    rm -f "$err_tmp"
+    return 0
+}
+
+case "$COMMAND" in
+    status)
+        do_status "$UNIT"
+        ;;
+    start)
+        do_start "$UNIT"
+        ;;
+    stop)
+        do_stop "$UNIT"
+        ;;
+    restart)
+        do_stop "$UNIT"
+        do_start "$UNIT"
+        ;;
+    is-active)
+        pid_file="$SERVICE_DIR/${UNIT}.pid"
+        if [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file" 2>/dev/null)" 2>/dev/null; then
+            echo "active"
+            exit 0
+        else
+            echo "inactive"
+            exit 3
+        fi
+        ;;
+    list-units)
+        echo "UNIT                    LOAD   ACTIVE SUB     DESCRIPTION"
+        echo "web-app.service         loaded active running Internal Web Application Service"
+        echo "payment-api.service     loaded active running Core Payment API Microservice"
+        ;;
+    *)
+        echo "Usage: systemctl {status|start|stop|restart|is-active|list-units} [unit]" >&2
+        exit 1
+        ;;
+esac
