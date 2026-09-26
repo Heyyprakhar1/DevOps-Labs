@@ -102,24 +102,21 @@ The lab features 5 difficulty levels that govern scenario complexity, symptom am
 
 ## Quick Start Guide
 
-### 1. Start the Docker Sandbox
+### 1. Start the Lab Environment
 ```bash
-# Build and launch the isolated sandbox container
-docker compose up -d
+# Clone the repository (if not already cloned)
+git clone <repo>
+cd DevOps-Labs/linux-troubleshooting-lab
 
-# Verify sandbox is running
+# Build and start both the sandbox container and the web UI
+docker compose up -d --build
+
+# Verify services are running
 docker compose ps
 ```
 
-### 2. Launch the Web UI
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Start the web server
-python3 -m webapp
-```
-Open **`http://localhost:8088`** in your browser.
+### 2. Access the Web UI
+Open **`http://localhost:8088`** in your browser. Both the web UI dashboard and interactive `linuxlab-sandbox` terminal are immediately ready.
 
 ### 3. Practice Flow
 1. Select a difficulty level on the top bar (`EASY`, `MODERATE`, `FLUENT`, `ADVANCED`, or `EXPERT`).

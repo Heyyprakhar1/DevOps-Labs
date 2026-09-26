@@ -56,6 +56,7 @@ class InterviewEvaluateRequest(BaseModel):
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 @app.get("/")
+@app.head("/")
 async def get_index():
     return FileResponse(str(INDEX_FILE))
 

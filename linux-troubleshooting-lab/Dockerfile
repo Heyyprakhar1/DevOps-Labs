@@ -1,4 +1,40 @@
-FROM ubuntu:22.04
+# ==============================================================================
+# Linux Troubleshooting Lab — Multi-Stage Build
+# Target 1: web     -> FastAPI Web UI & xterm.js Terminal Proxy
+# Target 2: sandbox -> Disposable Target Environment (prod-app-server-01)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Stage 1: Web UI & Terminal Proxy (linuxlab-web)
+# ------------------------------------------------------------------------------
+FROM python:3.11-slim AS web
+
+WORKDIR /app
+
+# Install Docker CLI & Compose plugin from official docker:cli image
+COPY --from=docker:cli /usr/local/bin/docker /usr/local/bin/docker
+COPY --from=docker:cli /usr/local/bin/docker-compose /usr/local/bin/docker-compose
+COPY --from=docker:cli /usr/local/libexec/docker/cli-plugins/docker-compose /usr/local/libexec/docker/cli-plugins/docker-compose
+
+# Install Python requirements
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application source code
+COPY . .
+
+ENV PORT=8088
+ENV HOST=0.0.0.0
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 8088
+
+CMD ["python3", "webapp.py"]
+
+# ------------------------------------------------------------------------------
+# Stage 2: Disposable Sandbox Container (linuxlab-sandbox)
+# ------------------------------------------------------------------------------
+FROM ubuntu:22.04 AS sandbox
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive

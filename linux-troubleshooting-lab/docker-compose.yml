@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: sandbox
     image: linuxlab-sandbox:latest
     container_name: linuxlab-sandbox
     hostname: prod-app-server-01
@@ -16,3 +17,25 @@ services:
       - seccomp:unconfined
     environment:
       - TERM=xterm-256color
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web
+    image: linuxlab-web:latest
+    container_name: linuxlab-web
+    restart: unless-stopped
+    ports:
+      - "8088:8088"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - sandbox
+    environment:
+      - TERM=xterm-256color
+      - PORT=8088
+      - HOST=0.0.0.0
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
