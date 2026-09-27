@@ -100,16 +100,6 @@
               <div class="context-box" id="incident-context"></div>
             </div>
 
-            <div id="guidance-section" style="display: none;">
-              <div class="section-label" style="color: var(--accent-yellow);">Investigation Guidance</div>
-              <div class="guidance-box" id="incident-guidance"></div>
-            </div>
-
-            <div id="tools-section" style="display: none;">
-              <div class="section-label">Recommended Tools</div>
-              <div class="tools-tags" id="incident-tools"></div>
-            </div>
-
             <div>
               <div class="section-label">Reported Symptoms</div>
               <ul class="symptoms-list" id="incident-symptoms"></ul>
@@ -119,14 +109,26 @@
               <div class="section-label">Your Objective</div>
               <div class="objective-box" id="incident-objective"></div>
             </div>
+
+            <!-- Compact Opt-in Help Area -->
+            <div class="help-box" id="help-box">
+              <div class="help-box-header">
+                <span class="help-box-title">💡 NEED HELP?</span>
+                <span class="help-box-counter" id="help-hint-counter">HINTS: 0/3</span>
+              </div>
+              <div class="help-box-desc" id="help-box-desc">
+                Stuck? Reveal an approach hint when you're unsure how to proceed.
+              </div>
+              <div class="revealed-hints-list" id="revealed-hints-list" style="display: none;"></div>
+              <button class="btn btn-warning btn-hint-action" id="btn-request-hint">
+                Show Approach Hint
+              </button>
+            </div>
           </div>
         </div>
 
         <div class="sidebar-controls" id="sidebar-controls" style="display: none;">
-          <div class="action-row">
-            <button class="btn btn-warning" id="btn-request-hint">💡 Hint</button>
-            <button class="btn btn-primary" id="btn-evaluate-incident">✅ Evaluate</button>
-          </div>
+          <button class="btn btn-primary" id="btn-evaluate-incident" style="width: 100%; justify-content: center;">✅ Evaluate Incident</button>
         </div>
       </aside>
 

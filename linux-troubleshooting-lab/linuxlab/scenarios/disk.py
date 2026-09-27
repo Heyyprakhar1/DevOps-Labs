@@ -33,9 +33,9 @@ class DiskSpaceScenario(Scenario):
         "Safely truncate the oversized log file using '> /path/to/file.log'."
     )
     hints = [
-        "Check overall disk usage with 'df -h' to see which partition is filling up.",
-        "Inspect directory sizes with 'du -sh /var/log/app/*' or 'find /var/log -type f -size +100M'.",
-        "Truncate the bloated file '/var/log/app/transaction.log' using '> /var/log/app/transaction.log'.",
+        "First determine what resource is actually exhausted.",
+        "Identify the affected filesystem, then narrow the investigation to the directories consuming the most space.",
+        "Look for unusually large files in the application logging area and confirm the culprit before modifying anything. Safely truncate the oversized log file using '> /var/log/app/transaction.log'.",
     ]
     expected_root_cause = (
         "A runaway debug trace accumulated in '/var/log/app/transaction.log', "

@@ -34,8 +34,8 @@ class FilePermissionsScenario(Scenario):
         "Grant read access using 'sudo chmod 644 /etc/app/web_app.conf', then restart the service."
     )
     hints = [
-        "Inspect why the service failed using 'systemctl status web-app' or 'journalctl -u web-app'.",
-        "Notice 'Permission denied'. Inspect file permissions on '/etc/app/web_app.conf' using 'ls -la /etc/app/'.",
+        "Inspect why the service failed by checking the service status and logs.",
+        "Notice the permission denial error. Inspect file permissions on '/etc/app/web_app.conf' using 'ls -la /etc/app/'.",
         "Set readable permissions with 'sudo chmod 644 /etc/app/web_app.conf', then restart with 'systemctl restart web-app'.",
     ]
     expected_root_cause = (

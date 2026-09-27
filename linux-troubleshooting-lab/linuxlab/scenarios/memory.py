@@ -33,8 +33,8 @@ class MemoryPressureScenario(Scenario):
         "Identify the rogue PID and terminate it with 'kill <PID>'."
     )
     hints = [
-        "Inspect system memory utilization using 'free -m' or 'free -h'.",
-        "Sort active processes by resident memory ('top' -> Shift+M or 'ps aux --sort=-%mem').",
+        "First determine whether physical RAM or swap is exhausted by inspecting memory distribution.",
+        "Sort active processes by resident memory ('top' -> Shift+M or 'ps aux --sort=-%mem') to isolate the high consumer.",
         "Find the PID of 'mem_eater' via 'ps aux --sort=-%mem | head -n 10' and terminate it with 'kill <PID>'.",
     ]
     expected_root_cause = (

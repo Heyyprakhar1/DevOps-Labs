@@ -198,6 +198,26 @@ async def api_get_current_user(current_user: Dict[str, Any] = Depends(get_curren
 
 # --- Incident Lifecycle & Status Endpoints ---
 
+def _format_unlocked_hints(scenario, hints_used: List[int], sc_level: str) -> List[Dict[str, Any]]:
+    penalties = {1: 5, 2: 10, 3: 15}
+    hint_type_labels = {
+        "EASY": {1: "Area to Inspect", 2: "Suggested Command", 3: "Targeted Resolution"},
+        "MODERATE": {1: "Investigation Direction", 2: "Subsystem & Tool", 3: "Correlated Clue"},
+        "FLUENT": {1: "Conceptual Direction", 2: "Hypothesis Clue", 3: "Evidence Clue"},
+        "ADVANCED": {1: "Broad Subsystem Direction", 2: "Signal Correlation Clue", 3: "Root Cause Clue"},
+        "EXPERT": {1: "Investigation Reasoning", 2: "Diagnostic Principle", 3: "Hypothesis Elimination Guidance"},
+    }
+    unlocked = []
+    for h_lvl in sorted(hints_used):
+        if 1 <= h_lvl <= len(scenario.hints):
+            unlocked.append({
+                "level": h_lvl,
+                "type_label": hint_type_labels.get(sc_level, {}).get(h_lvl, f"Hint #{h_lvl}"),
+                "hint": scenario.hints[h_lvl - 1],
+                "penalty": penalties.get(h_lvl, 10),
+            })
+    return unlocked
+
 @app.get("/api/status")
 async def get_status(user: Optional[Dict[str, Any]] = Depends(get_optional_user)):
     """Get system health and user-specific active incident status."""
@@ -211,6 +231,7 @@ async def get_status(user: Optional[Dict[str, Any]] = Depends(get_optional_user)
             if sc:
                 elapsed = max(0, int(time.time() - session.get("start_time", time.time())))
                 sc_level = getattr(sc, "level", sc.difficulty).upper()
+                hints_used = session.get("hints_used", [])
                 active_incident = {
                     "id": sc.id,
                     "category": sc.category.upper(),
@@ -220,9 +241,8 @@ async def get_status(user: Optional[Dict[str, Any]] = Depends(get_optional_user)
                     "symptoms": sc.symptoms,
                     "context": sc.context,
                     "objective": sc.objective,
-                    "investigation_guidance": getattr(sc, "investigation_guidance", ""),
-                    "expected_tools": getattr(sc, "expected_tools", []),
-                    "hints_used": session.get("hints_used", []),
+                    "hints_used": hints_used,
+                    "unlocked_hints": _format_unlocked_hints(sc, hints_used, sc_level),
                     "command_history": session.get("command_history", []),
                     "elapsed_seconds": elapsed,
                     "container_name": session.get("container_name"),
@@ -237,6 +257,7 @@ async def get_status(user: Optional[Dict[str, Any]] = Depends(get_optional_user)
             if sc:
                 elapsed = max(0, int(time.time() - session.get("start_time", time.time())))
                 sc_level = getattr(sc, "level", sc.difficulty).upper()
+                hints_used = session.get("hints_used", [])
                 active_incident = {
                     "id": sc.id,
                     "category": sc.category.upper(),
@@ -246,9 +267,8 @@ async def get_status(user: Optional[Dict[str, Any]] = Depends(get_optional_user)
                     "symptoms": sc.symptoms,
                     "context": sc.context,
                     "objective": sc.objective,
-                    "investigation_guidance": getattr(sc, "investigation_guidance", ""),
-                    "expected_tools": getattr(sc, "expected_tools", []),
-                    "hints_used": session.get("hints_used", []),
+                    "hints_used": hints_used,
+                    "unlocked_hints": _format_unlocked_hints(sc, hints_used, sc_level),
                     "command_history": session.get("command_history", []),
                     "elapsed_seconds": elapsed,
                 }

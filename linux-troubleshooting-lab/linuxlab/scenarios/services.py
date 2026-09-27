@@ -121,9 +121,9 @@ class StoppedServiceScenario(Scenario):
         "Verify service recovery with 'curl http://localhost:8080/health'."
     )
     hints = [
-        "Check the state of the service using 'systemctl status web-app'.",
-        "Notice the service is inactive (dead). Start it with 'systemctl start web-app'.",
-        "Run 'systemctl start web-app' and verify with 'curl http://localhost:8080/health'.",
+        "First determine the operational status of the core application service.",
+        "Notice the service is inactive (dead). Start the service unit to bring it online.",
+        "Run 'systemctl start web-app' and verify recovery with 'curl http://localhost:8080/health'.",
     ]
     expected_root_cause = "The web-app.service daemon was stopped and inactive."
     expected_fix = "Started the service via 'systemctl start web-app' and verified endpoint health."

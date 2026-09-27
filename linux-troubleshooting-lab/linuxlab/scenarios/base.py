@@ -60,10 +60,10 @@ class Scenario(ABC):
         """
         pass
 
-    def get_briefing(self) -> Dict[str, Any]:
+    def get_briefing(self, include_guidance: bool = False) -> Dict[str, Any]:
         """Return safe user-facing incident briefing without revealing root cause or fix."""
         lvl = getattr(self, "level", getattr(self, "difficulty", "EASY"))
-        return {
+        briefing = {
             "id": self.id,
             "category": self.category.upper(),
             "difficulty": getattr(self, "difficulty", lvl),
@@ -72,6 +72,8 @@ class Scenario(ABC):
             "symptoms": self.symptoms,
             "context": self.context,
             "objective": self.objective,
-            "investigation_guidance": getattr(self, "investigation_guidance", ""),
-            "expected_tools": getattr(self, "expected_tools", []),
         }
+        if include_guidance:
+            briefing["investigation_guidance"] = getattr(self, "investigation_guidance", "")
+            briefing["expected_tools"] = getattr(self, "expected_tools", [])
+        return briefing

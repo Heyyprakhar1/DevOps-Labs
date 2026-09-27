@@ -332,31 +332,8 @@ async function fetchStatus() {
       document.getElementById("incident-context").textContent = incident.context;
       document.getElementById("incident-objective").textContent = incident.objective;
 
-      // Investigation Guidance
-      const guidanceSec = document.getElementById("guidance-section");
-      const guidanceBox = document.getElementById("incident-guidance");
-      if (guidanceSec && guidanceBox) {
-        if (incident.investigation_guidance && incident.investigation_guidance.trim()) {
-          guidanceSec.style.display = "block";
-          guidanceBox.textContent = incident.investigation_guidance;
-        } else {
-          guidanceSec.style.display = "none";
-        }
-      }
-
-      // Recommended Tools
-      const toolsSec = document.getElementById("tools-section");
-      const toolsBox = document.getElementById("incident-tools");
-      if (toolsSec && toolsBox) {
-        if (incident.expected_tools && incident.expected_tools.length > 0) {
-          toolsSec.style.display = "block";
-          toolsBox.innerHTML = incident.expected_tools
-            .map(t => `<span class="tool-tag">${t}</span>`)
-            .join(" ");
-        } else {
-          toolsSec.style.display = "none";
-        }
-      }
+      // Render Help Box and progressive hints (opt-in)
+      renderHelpArea(incident);
 
       const symptomsList = document.getElementById("incident-symptoms");
       symptomsList.innerHTML = "";
@@ -389,6 +366,7 @@ async function fetchStatus() {
       document.getElementById("incident-title").textContent = "No Active Incident";
       document.getElementById("cmd-count").textContent = "0";
       document.getElementById("history-content").innerHTML = "";
+      renderHelpArea(null);
     }
   } catch (err) {
     console.error("Status poll error:", err);
@@ -471,10 +449,11 @@ function initActions() {
     }
   });
 
-  // Request Hint
-  document.getElementById("btn-request-hint").addEventListener("click", () => {
-    openHintModal();
-  });
+  // Request Hint (opt-in approach guidance)
+  const btnHint = document.getElementById("btn-request-hint");
+  if (btnHint) {
+    btnHint.addEventListener("click", requestApproachHint);
+  }
 
   document.getElementById("btn-unlock-next-hint").addEventListener("click", async () => {
     try {
@@ -748,6 +727,103 @@ function updateAuthUI() {
 function switchToTab(tabId) {
   const btn = document.querySelector(`.btn-nav[data-tab="${tabId}"]`);
   if (btn) btn.click();
+}
+
+function escapeHtml(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function renderHelpArea(incident) {
+  const hintsUsed = (incident && incident.hints_used) || [];
+  const count = hintsUsed.length;
+  const counterEl = document.getElementById("help-hint-counter");
+  const btn = document.getElementById("btn-request-hint");
+  const hintsList = document.getElementById("revealed-hints-list");
+  const descEl = document.getElementById("help-box-desc");
+
+  if (counterEl) {
+    counterEl.textContent = `HINTS: ${count}/3`;
+  }
+
+  if (count === 0) {
+    if (descEl) descEl.textContent = "Stuck? Reveal an approach hint when you're unsure how to proceed.";
+    if (hintsList) {
+      hintsList.style.display = "none";
+      hintsList.innerHTML = "";
+    }
+    if (btn) {
+      btn.textContent = "Show Approach Hint";
+      btn.disabled = false;
+      btn.style.display = "inline-flex";
+    }
+  } else {
+    if (descEl) descEl.textContent = "Revealed approach guidance:";
+    if (hintsList) {
+      hintsList.style.display = "flex";
+      const unlocked = (incident && incident.unlocked_hints) || [];
+      if (unlocked.length > 0) {
+        hintsList.innerHTML = unlocked.map(h => `
+          <div class="revealed-hint-item">
+            <div class="revealed-hint-header">
+              <span class="revealed-hint-level">Hint ${h.level} — ${escapeHtml(h.type_label)}</span>
+              <span class="revealed-hint-penalty">-${h.penalty} pts</span>
+            </div>
+            <div class="revealed-hint-text">${escapeHtml(h.hint)}</div>
+          </div>
+        `).join("");
+      }
+    }
+
+    if (btn) {
+      if (count >= 3) {
+        btn.textContent = "All Hints Revealed";
+        btn.disabled = true;
+      } else {
+        btn.textContent = "Show Stronger Hint";
+        btn.disabled = false;
+        btn.style.display = "inline-flex";
+      }
+    }
+  }
+}
+
+async function requestApproachHint() {
+  if (!currentUser) {
+    openAuthModal("login");
+    return;
+  }
+  const btn = document.getElementById("btn-request-hint");
+  if (!btn || btn.disabled) return;
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Revealing Hint...";
+
+  try {
+    const res = await apiFetch("/api/incidents/hint", { method: "POST" });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      alert(err.detail || "Failed to unlock hint.");
+      btn.disabled = false;
+      btn.textContent = originalText;
+      return;
+    }
+    const data = await res.json();
+    if (data.exhausted) {
+      btn.textContent = "All Hints Revealed";
+      btn.disabled = true;
+    }
+    await fetchStatus();
+  } catch (e) {
+    alert("Error unlocking hint: " + e);
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
 }
 
 // --- Hints Modal Logic ---

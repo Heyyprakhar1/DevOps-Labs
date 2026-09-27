@@ -325,6 +325,7 @@ class TestMultiUserAuthAndIsolation(unittest.TestCase):
         self.assertIsNone(self.test_db.get_active_incident_session(user_a["id"]))
 
         # 2. Cleanup expired sessions older than 2 hours
+        SandboxManager.cleanup_expired_sessions(max_age_hours=0)
         old_time = (datetime.now(timezone.utc) - timedelta(hours=3)).isoformat()
         # Insert a session with updated_at in the past
         sess_id = str(uuid.uuid4())
