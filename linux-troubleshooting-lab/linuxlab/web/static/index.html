@@ -147,37 +147,30 @@
         </div>
 
         <div class="terminal-container" id="terminal-container"></div>
-
-        <!-- Command History Drawer -->
-        <div class="command-history-bar" id="history-toggle">
-          <span>📜 Session Command History (<span id="cmd-count">0</span> commands)</span>
-          <span id="history-arrow">▲</span>
-        </div>
-        <div class="command-history-content" id="history-content"></div>
       </section>
 
       <!-- Right Side Panel: Evaluation, Postmortem & History -->
       <aside class="right-panel" id="incident-right-panel">
         <div class="right-panel-header">
           <div class="right-panel-nav">
-            <button class="btn btn-sm right-tab-btn active" id="right-tab-eval-btn" data-rtab="right-eval-pane">Evaluation &amp; RCA</button>
-            <button class="btn btn-sm right-tab-btn" id="right-tab-history-btn" data-rtab="right-history-pane">History (<span id="right-history-count">0</span>)</button>
+            <button type="button" class="btn btn-sm right-tab-btn active" id="right-tab-eval-btn">Evaluation &amp; RCA</button>
+            <button type="button" class="btn btn-sm right-tab-btn" id="right-tab-history-btn">History (<span id="right-history-count">0</span>)</button>
           </div>
         </div>
 
         <div class="right-panel-body">
-          <!-- Subtab 1: Evaluation, Evidence, Postmortem -->
-          <div id="right-eval-pane" class="right-tab-content active">
-            <!-- No evaluation yet placeholder -->
+          <!-- Subtab 1: Evaluation & RCA -->
+          <div id="right-eval-pane" class="right-tab-content">
+            <!-- Placeholder state before evaluation -->
             <div id="right-no-eval-msg" class="right-placeholder">
               <div class="right-placeholder-icon">📋</div>
-              <div class="right-placeholder-title">No Evaluation Yet</div>
+              <div class="right-placeholder-title">Evaluation &amp; RCA</div>
               <p class="right-placeholder-desc">
-                Investigate and fix the incident in the terminal. When you are ready, click <strong>Evaluate Incident</strong> in the left sidebar to verify system state, review evidence, and generate post-mortem root cause analysis.
+                Investigate and troubleshoot using the terminal. When ready, click <strong>Evaluate Incident</strong> in the left sidebar to run system state verification, inspect evidence, and view your post-mortem.
               </p>
             </div>
 
-            <!-- Evaluation Report Card -->
+            <!-- Full Evaluation Report -->
             <div id="right-eval-report" style="display: none; flex-direction: column; gap: 14px;">
               <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div class="report-result-badge" id="right-report-badge">INCIDENT RESOLVED</div>
@@ -204,7 +197,7 @@
               <div class="report-section" id="right-report-evidence-section">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                   <div class="report-label">State-Based Machine Evidence</div>
-                  <button class="btn btn-sm" id="btn-toggle-right-evidence" style="font-size: 11px; padding: 2px 8px; cursor: pointer;">Show Evidence</button>
+                  <button type="button" class="btn btn-sm" id="btn-toggle-right-evidence" style="font-size: 11px; padding: 2px 8px; cursor: pointer;">Show Evidence</button>
                 </div>
                 <div id="right-evidence-container" style="display: none; overflow-x: auto;"></div>
               </div>
@@ -212,8 +205,8 @@
               <!-- Structured Level-Specific Postmortem Sections -->
               <div class="report-section" id="right-report-postmortem-section">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                  <div class="report-label">Structured Post-Mortem &amp; RCA</div>
-                  <button class="btn btn-sm" id="btn-toggle-right-postmortem" style="font-size: 11px; padding: 2px 8px; cursor: pointer;">View Postmortem</button>
+                  <div class="report-label">Structured Post-Mortem &amp; Expected RCA</div>
+                  <button type="button" class="btn btn-sm" id="btn-toggle-right-postmortem" style="font-size: 11px; padding: 2px 8px; cursor: pointer;">View Postmortem</button>
                 </div>
                 <div id="right-report-postmortem-container" style="display: none; flex-direction: column; gap: 10px;"></div>
               </div>
@@ -230,15 +223,24 @@
             </div>
           </div>
 
-          <!-- Subtab 2: Personal Attempts & History -->
+          <!-- Subtab 2: History -->
           <div id="right-history-pane" class="right-tab-content" style="display: none;">
-            <div id="right-history-empty" style="color: var(--text-muted); font-size: 13px; padding: 12px; text-align: center; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px;">
+            <div id="right-history-empty" style="display: none; color: var(--text-muted); font-size: 13px; padding: 16px; text-align: center; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px;">
               No completed attempts recorded yet.
             </div>
             <div id="right-history-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
           </div>
         </div>
       </aside>
+
+      <!-- Bottom Drawer: Session Command History spanning across bottom -->
+      <div class="command-history-drawer" id="incident-history-drawer">
+        <div class="command-history-bar" id="history-toggle">
+          <span>📜 Session Command History (<span id="cmd-count">0</span> commands)</span>
+          <span id="history-arrow">▲</span>
+        </div>
+        <div class="command-history-content" id="history-content"></div>
+      </div>
     </section>
 
     <!-- Tab 2: Scenario Library -->

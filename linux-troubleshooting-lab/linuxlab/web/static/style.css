@@ -201,7 +201,7 @@ main {
   display: flex;
 }
 
-/* Incident / Terminal / Right Panel Layout */
+/* Incident Workspace Layout (3 Columns + Bottom Command History) */
 #incident-pane {
   display: none;
   width: 100%;
@@ -211,13 +211,19 @@ main {
 
 #incident-pane.active {
   display: grid;
-  grid-template-columns: minmax(280px, 330px) minmax(450px, 1fr) minmax(280px, 350px);
+  grid-template-columns: minmax(300px, 340px) minmax(0, 1fr) minmax(280px, 340px);
+  grid-template-rows: 1fr auto;
+  grid-template-areas:
+    "sidebar terminal right"
+    "history history  history";
   width: 100%;
   height: 100%;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .incident-sidebar {
+  grid-area: sidebar;
   width: 100%;
   min-width: 0;
   max-width: none;
@@ -351,6 +357,7 @@ main {
 
 /* Terminal Workspace */
 .terminal-area {
+  grid-area: terminal;
   width: 100%;
   min-width: 0;
   min-height: 0;
@@ -359,6 +366,7 @@ main {
   background-color: #000;
   overflow: hidden;
   height: 100%;
+  box-sizing: border-box;
 }
 
 .terminal-header {
@@ -371,6 +379,7 @@ main {
   font-size: 12px;
   font-family: var(--font-mono);
   color: var(--text-muted);
+  flex-shrink: 0;
 }
 
 .terminal-title {
@@ -387,15 +396,30 @@ main {
 
 .terminal-container {
   flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
   padding: 8px;
   overflow: hidden;
   background-color: #000;
+  box-sizing: border-box;
+  position: relative;
 }
 
-/* Command History Drawer */
+/* Command History Drawer (Spans across bottom of workspace) */
+.command-history-drawer {
+  grid-area: history;
+  width: 100%;
+  min-width: 0;
+  border-top: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+  flex-shrink: 0;
+  box-sizing: border-box;
+  z-index: 5;
+}
+
 .command-history-bar {
   background-color: var(--bg-secondary);
-  border-top: 1px solid var(--border-color);
   padding: 6px 16px;
   font-size: 12px;
   font-family: var(--font-mono);
@@ -413,12 +437,14 @@ main {
 .command-history-content {
   background-color: var(--bg-primary);
   border-top: 1px solid var(--border-color);
-  max-height: 120px;
+  max-height: 140px;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 8px 16px;
   font-family: var(--font-mono);
   font-size: 12px;
   display: none;
+  box-sizing: border-box;
 }
 
 .command-history-content.open {
@@ -1152,6 +1178,7 @@ textarea:focus, select:focus {
    ================================================== */
 
 .right-panel {
+  grid-area: right;
   width: 100%;
   min-width: 0;
   max-width: none;
@@ -1206,10 +1233,12 @@ textarea:focus, select:focus {
   color: var(--accent-cyan);
 }
 
-/* Single vertical scroll container for right-side content */
+/* Single primary vertical scroll container for right-side content */
 .right-panel-body {
   padding: 14px;
   flex: 1;
+  min-height: 0;
+  min-width: 0;
   overflow-y: auto;
   overflow-x: hidden;
   display: flex;
@@ -1251,9 +1280,10 @@ textarea:focus, select:focus {
   flex-direction: column;
   gap: 14px;
   width: 100%;
+  min-width: 0;
 }
 
-/* Ensure Evaluation Dimensions stack neatly inside the right panel */
+/* Right-panel card overrides to fit cleanly inside single scroll container */
 .right-panel .eval-dimensions-grid {
   display: flex;
   flex-direction: column;
@@ -1262,6 +1292,7 @@ textarea:focus, select:focus {
 
 .right-panel .dim-card {
   padding: 8px 12px;
+  min-width: 0;
 }
 
 .right-panel .report-result-badge {
@@ -1279,10 +1310,13 @@ textarea:focus, select:focus {
 
 .right-panel .report-section {
   padding-top: 10px;
+  min-width: 0;
 }
 
 .right-panel .evidence-table {
   font-size: 11px;
+  width: 100%;
+  table-layout: auto;
 }
 
 .right-panel .evidence-table th,
@@ -1293,6 +1327,7 @@ textarea:focus, select:focus {
 
 .right-panel .postmortem-card {
   padding: 8px 12px;
+  min-width: 0;
 }
 
 .right-panel .postmortem-title {
@@ -1317,6 +1352,7 @@ textarea:focus, select:focus {
   gap: 5px;
   cursor: pointer;
   transition: all 0.15s ease;
+  min-width: 0;
 }
 
 .right-history-card:hover {
@@ -1328,6 +1364,7 @@ textarea:focus, select:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  min-width: 0;
 }
 
 .right-history-title {
@@ -1346,22 +1383,26 @@ textarea:focus, select:focus {
   justify-content: space-between;
   font-size: 11px;
   color: var(--text-muted);
+  min-width: 0;
 }
 
 /* ==================================================
    Responsive Viewport Breakpoints
    ================================================== */
 
-@media (max-width: 1150px) and (min-width: 861px) {
+@media (max-width: 1100px) and (min-width: 901px) {
   #incident-pane.active {
-    grid-template-columns: minmax(260px, 300px) minmax(340px, 1fr) minmax(260px, 300px);
+    grid-template-columns: minmax(280px, 300px) minmax(0, 1fr) minmax(260px, 300px);
   }
 }
 
-@media (max-width: 860px) {
+@media (max-width: 900px) {
   #incident-pane.active {
     display: flex;
     flex-direction: column;
+    grid-template-columns: none;
+    grid-template-rows: none;
+    grid-template-areas: none;
     overflow-y: auto;
     overflow-x: hidden;
     height: 100%;
@@ -1369,7 +1410,8 @@ textarea:focus, select:focus {
 
   .incident-sidebar,
   .terminal-area,
-  .right-panel {
+  .right-panel,
+  .command-history-drawer {
     width: 100% !important;
     min-width: 100% !important;
     max-width: 100% !important;
@@ -1391,6 +1433,6 @@ textarea:focus, select:focus {
 
   .right-panel {
     height: auto;
-    min-height: 350px;
+    min-height: 360px;
   }
 }

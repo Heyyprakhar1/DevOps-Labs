@@ -281,6 +281,12 @@ function initNav() {
     historyToggle.addEventListener("click", () => {
       historyContent.classList.toggle("open");
       historyArrow.textContent = historyContent.classList.contains("open") ? "▼" : "▲";
+      setTimeout(() => {
+        if (fitAddon && term) {
+          fitAddon.fit();
+          sendResize();
+        }
+      }, 60);
     });
   }
 }
@@ -496,6 +502,7 @@ function initActions() {
       });
       const data = await res.json();
       renderEvaluationReport(data);
+      closeEvaluateModal();
       fetchStatus();
       fetchProgress();
       fetchHistory();
@@ -1159,11 +1166,11 @@ function renderRightPanelReport(report) {
 
   // Explanation feedback callout
   const feedbackSection = document.getElementById("right-report-feedback-section");
-  const feedbackEl = document.getElementById("right-report-explanation-feedback");
-  if (feedbackSection && feedbackEl) {
+  const explanationFeedback = document.getElementById("right-report-explanation-feedback");
+  if (feedbackSection && explanationFeedback) {
     if (report.explanation_feedback) {
       feedbackSection.style.display = "block";
-      feedbackEl.textContent = report.explanation_feedback;
+      explanationFeedback.textContent = report.explanation_feedback;
     } else {
       feedbackSection.style.display = "none";
     }
@@ -1173,50 +1180,53 @@ function renderRightPanelReport(report) {
   const dimGrid = document.getElementById("right-eval-dimensions-grid");
   if (dimGrid) {
     dimGrid.innerHTML = "";
-    const dims = report.dimensions || {};
-    const dimKeys = [
-      { key: "system_state", title: "System State" },
-      { key: "root_cause", title: "Root Cause / Diagnosis" },
-      { key: "remediation", title: "Remediation" },
-      { key: "explanation", title: "Explanation" }
+    const dims = [
+      { key: "technical_state", label: "1. Technical State" },
+      { key: "remediation_quality", label: "2. Remediation Quality" },
+      { key: "diagnostic_reasoning", label: "3. Diagnostic Reasoning" },
+      { key: "operational_efficiency", label: "4. Efficiency & Signals" },
     ];
 
-    dimKeys.forEach(({ key, title }) => {
-      const data = dims[key] || { status: "UNKNOWN", detail: "" };
-      const status = (data.status || "UNKNOWN").toUpperCase();
-      let badgeClass = "badge-unknown";
-      if (status === "PASS") badgeClass = "badge-pass";
-      else if (status === "PARTIAL") badgeClass = "badge-partial";
-      else if (status === "NEEDS IMPROVEMENT") badgeClass = "badge-needs-improvement";
-      else if (status === "FAIL") badgeClass = "badge-fail";
+    dims.forEach((d) => {
+      const dimData = report.dimensions ? report.dimensions[d.key] : null;
+      const status = dimData ? (dimData.status || "UNKNOWN") : "UNKNOWN";
+      const detail = dimData ? (dimData.detail || "No data recorded") : "No dimension data";
+      const score = dimData && dimData.score !== undefined ? `${dimData.score} pts` : "";
 
-      const scoreText = (data.score !== undefined && data.max_score) ? ` (${data.score}/${data.max_score} pts)` : "";
+      let badgeClass = "badge-unknown";
+      if (status === "PASS" || status === "OPTIMAL") badgeClass = "badge-pass";
+      else if (status === "PARTIAL" || status === "ACCEPTABLE") badgeClass = "badge-partial";
+      else if (status === "NEEDS_IMPROVEMENT") badgeClass = "badge-needs-improvement";
+      else if (status === "FAIL" || status === "INEFFICIENT") badgeClass = "badge-fail";
 
       const card = document.createElement("div");
       card.className = "dim-card";
       card.innerHTML = `
         <div class="dim-header">
-          <span class="dim-title">${data.name || title}</span>
+          <span class="dim-title">${d.label}</span>
           <span class="dim-badge ${badgeClass}">${status}</span>
         </div>
-        <div class="dim-detail">${data.detail || ""}${scoreText}</div>
+        <div class="dim-detail">${detail}</div>
+        ${score ? `<div style="font-size: 11px; color: var(--text-muted); font-weight: 600; margin-top: 4px;">Score: ${score}</div>` : ""}
       `;
       dimGrid.appendChild(card);
     });
   }
 
-  // Machine Evidence Summary Table
+  // State-Based Machine Evidence Section
+  const evSection = document.getElementById("right-report-evidence-section");
   const evidenceContainer = document.getElementById("right-evidence-container");
   const btnToggleEv = document.getElementById("btn-toggle-right-evidence");
-  if (evidenceContainer) {
+  if (evSection && evidenceContainer) {
     evidenceContainer.style.display = "none";
     if (btnToggleEv) btnToggleEv.textContent = "Show Evidence";
-
+    evidenceContainer.innerHTML = "";
     if (report.evidence && report.evidence.summary && report.evidence.summary.length > 0) {
+      evSection.style.display = "block";
       let html = `<table class="evidence-table">
         <thead>
           <tr>
-            <th>Metric / Subsystem</th>
+            <th>Metric</th>
             <th>Before</th>
             <th>After</th>
             <th>Status</th>
@@ -1236,11 +1246,12 @@ function renderRightPanelReport(report) {
       html += `</tbody></table>`;
       evidenceContainer.innerHTML = html;
     } else {
+      evSection.style.display = "block";
       evidenceContainer.innerHTML = `<div style="font-size: 12px; color: var(--text-muted); padding: 8px;">No machine evidence recorded.</div>`;
     }
   }
 
-  // Render structured postmortem sections matching level
+  // Structured postmortem sections
   const pmContainer = document.getElementById("right-report-postmortem-container");
   const btnTogglePm = document.getElementById("btn-toggle-right-postmortem");
   if (pmContainer) {
@@ -1284,18 +1295,19 @@ function renderRightPanelReport(report) {
     }
   }
 
-  if (report.ai_critique && report.ai_critique.trim()) {
-    const aiSection = document.getElementById("right-report-ai-section");
-    const aiCritique = document.getElementById("right-report-ai-critique");
-    if (aiSection && aiCritique) {
+  // AI Senior SRE Feedback
+  const aiSection = document.getElementById("right-report-ai-section");
+  const aiCritique = document.getElementById("right-report-ai-critique");
+  if (aiSection && aiCritique) {
+    if (report.ai_critique && report.ai_critique.trim()) {
       aiSection.style.display = "block";
       aiCritique.textContent = report.ai_critique;
+    } else {
+      aiSection.style.display = "none";
     }
-  } else {
-    const aiSection = document.getElementById("right-report-ai-section");
-    if (aiSection) aiSection.style.display = "none";
   }
 
+  // Key DevOps Takeaways
   const learningsList = document.getElementById("right-report-learnings");
   if (learningsList) {
     learningsList.innerHTML = "";
@@ -1481,23 +1493,24 @@ async function fetchProgress() {
 // --- History View ---
 
 async function fetchHistory() {
+  const rightEmpty = document.getElementById("right-history-empty");
+  const rightList = document.getElementById("right-history-list");
+  const rightCount = document.getElementById("right-history-count");
+
   if (!currentUser) {
     const emptyMsg = document.getElementById("history-empty-msg");
     if (emptyMsg) {
       emptyMsg.style.display = "block";
       emptyMsg.textContent = "Please sign in to view your incident attempt history.";
     }
-    const rightEmpty = document.getElementById("right-history-empty");
+    const tbody = document.getElementById("history-tbody");
+    if (tbody) tbody.innerHTML = "";
     if (rightEmpty) {
       rightEmpty.style.display = "block";
       rightEmpty.textContent = "Please sign in to view saved attempt history.";
     }
-    const rightList = document.getElementById("right-history-list");
     if (rightList) rightList.innerHTML = "";
-    const rightCount = document.getElementById("right-history-count");
     if (rightCount) rightCount.textContent = "0";
-    const tbody = document.getElementById("history-tbody");
-    if (tbody) tbody.innerHTML = "";
     return;
   }
 
@@ -1508,11 +1521,7 @@ async function fetchHistory() {
 
     const emptyMsg = document.getElementById("history-empty-msg");
     const tbody = document.getElementById("history-tbody");
-    const rightCountEl = document.getElementById("right-history-count");
-    if (rightCountEl) rightCountEl.textContent = attempts.length;
-
-    const rightHistoryList = document.getElementById("right-history-list");
-    const rightHistoryEmpty = document.getElementById("right-history-empty");
+    if (rightCount) rightCount.textContent = attempts.length;
 
     if (attempts.length === 0) {
       if (emptyMsg) {
@@ -1520,18 +1529,18 @@ async function fetchHistory() {
         emptyMsg.textContent = "No completed attempts recorded yet. Solve an incident to view your historical evaluations and postmortems.";
       }
       if (tbody) tbody.innerHTML = "";
-      if (rightHistoryEmpty) {
-        rightHistoryEmpty.style.display = "block";
-        rightHistoryEmpty.textContent = "No completed attempts recorded yet.";
+      if (rightEmpty) {
+        rightEmpty.style.display = "block";
+        rightEmpty.textContent = "No completed attempts recorded yet.";
       }
-      if (rightHistoryList) rightHistoryList.innerHTML = "";
+      if (rightList) rightList.innerHTML = "";
       return;
     }
 
     if (emptyMsg) emptyMsg.style.display = "none";
-    if (rightHistoryEmpty) rightHistoryEmpty.style.display = "none";
+    if (rightEmpty) rightEmpty.style.display = "none";
     if (tbody) tbody.innerHTML = "";
-    if (rightHistoryList) rightHistoryList.innerHTML = "";
+    if (rightList) rightList.innerHTML = "";
 
     attempts.forEach((a) => {
       const isSolved = a.status === "SOLVED";
@@ -1561,7 +1570,7 @@ async function fetchHistory() {
         tbody.appendChild(tr);
       }
 
-      if (rightHistoryList) {
+      if (rightList) {
         const card = document.createElement("div");
         card.className = "right-history-card";
         const shortDate = a.created_at ? new Date(a.created_at).toLocaleDateString() : "";
@@ -1579,7 +1588,7 @@ async function fetchHistory() {
         card.addEventListener("click", () => {
           inspectHistoryAttempt(a.id);
         });
-        rightHistoryList.appendChild(card);
+        rightList.appendChild(card);
       }
     });
   } catch (e) {
@@ -1595,20 +1604,7 @@ window.inspectHistoryAttempt = async function(attemptId) {
       return;
     }
     const attempt = await res.json();
-    openEvaluateModal();
-
-    document.getElementById("eval-form").style.display = "none";
-    document.getElementById("eval-report").style.display = "flex";
-    document.getElementById("eval-footer").style.display = "flex";
-    document.getElementById("btn-eval-next").style.display = "none";
-
     const isSolved = attempt.status === "SOLVED";
-    const badge = document.getElementById("report-badge");
-    badge.textContent = isSolved ? `✅ ${attempt.overall_verdict || "INCIDENT RESOLVED"}` : `❌ ${attempt.overall_verdict || "INCIDENT UNRESOLVED"}`;
-    badge.className = isSolved ? "report-result-badge result-solved" : "report-result-badge result-failed";
-
-    document.getElementById("report-score").textContent = `${attempt.score}/100`;
-    document.getElementById("report-signal").textContent = attempt.technical_resolution || (isSolved ? "All system invariants verified healthy." : "System verification failed.");
 
     const reportObj = {
       ...attempt,
@@ -1617,6 +1613,12 @@ window.inspectHistoryAttempt = async function(attemptId) {
       feedback_msg: attempt.technical_resolution || "Machine evaluation record loaded from persistent history."
     };
     renderEvaluationReport(reportObj);
+
+    // Switch to incident workspace & right evaluation subtab to view report cleanly beside terminal
+    switchToTab("incident-pane");
+    const rTabEvalBtn = document.getElementById("right-tab-eval-btn");
+    if (rTabEvalBtn) rTabEvalBtn.click();
+    closeEvaluateModal();
   } catch (e) {
     alert("Error loading attempt: " + e);
   }
