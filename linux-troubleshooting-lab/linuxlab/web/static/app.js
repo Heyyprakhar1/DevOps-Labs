@@ -56,7 +56,6 @@ function initApp() {
   fetchStatus();
   fetchLibrary();
   fetchProgress();
-  fetchHistory();
 
   if (!statusInterval) {
     statusInterval = setInterval(fetchStatus, 3000);
@@ -281,12 +280,6 @@ function initNav() {
     historyToggle.addEventListener("click", () => {
       historyContent.classList.toggle("open");
       historyArrow.textContent = historyContent.classList.contains("open") ? "▼" : "▲";
-      setTimeout(() => {
-        if (fitAddon && term) {
-          fitAddon.fit();
-          sendResize();
-        }
-      }, 60);
     });
   }
 }
@@ -374,7 +367,6 @@ async function fetchStatus() {
       document.getElementById("cmd-count").textContent = "0";
       document.getElementById("history-content").innerHTML = "";
       renderHelpArea(null);
-      resetRightPanelEvaluation();
     }
   } catch (err) {
     console.error("Status poll error:", err);
@@ -430,7 +422,6 @@ function initActions() {
         body: JSON.stringify({ level: selectedLevel }),
       });
       if (res.ok) {
-        resetRightPanelEvaluation();
         switchToTab("incident-pane");
         connectTerminalWs();
         fetchStatus();
@@ -450,7 +441,6 @@ function initActions() {
       const res = await apiFetch("/api/incidents/reset", { method: "POST" });
       const data = await res.json();
       alert(data.message || "Environment reset complete.");
-      resetRightPanelEvaluation();
       fetchStatus();
       fetchProgress();
       fetchHistory();
@@ -502,7 +492,6 @@ function initActions() {
       });
       const data = await res.json();
       renderEvaluationReport(data);
-      closeEvaluateModal();
       fetchStatus();
       fetchProgress();
       fetchHistory();
@@ -538,51 +527,6 @@ function initActions() {
       const isHidden = pmContainer.style.display === "none";
       pmContainer.style.display = isHidden ? "flex" : "none";
       btnTogglePm.textContent = isHidden ? "Hide Postmortem" : "View Postmortem";
-    });
-  }
-
-  // Right Panel Subtabs
-  const rTabEvalBtn = document.getElementById("right-tab-eval-btn");
-  const rTabHistBtn = document.getElementById("right-tab-history-btn");
-  const rEvalPane = document.getElementById("right-eval-pane");
-  const rHistPane = document.getElementById("right-history-pane");
-
-  if (rTabEvalBtn && rTabHistBtn && rEvalPane && rHistPane) {
-    rTabEvalBtn.addEventListener("click", () => {
-      rTabEvalBtn.classList.add("active");
-      rTabHistBtn.classList.remove("active");
-      rEvalPane.style.display = "flex";
-      rHistPane.style.display = "none";
-    });
-
-    rTabHistBtn.addEventListener("click", () => {
-      rTabHistBtn.classList.add("active");
-      rTabEvalBtn.classList.remove("active");
-      rHistPane.style.display = "flex";
-      rEvalPane.style.display = "none";
-      fetchHistory();
-    });
-  }
-
-  // Right Panel Evidence Toggle
-  const btnToggleRightEv = document.getElementById("btn-toggle-right-evidence");
-  const rightEvContainer = document.getElementById("right-evidence-container");
-  if (btnToggleRightEv && rightEvContainer) {
-    btnToggleRightEv.addEventListener("click", () => {
-      const isHidden = rightEvContainer.style.display === "none";
-      rightEvContainer.style.display = isHidden ? "block" : "none";
-      btnToggleRightEv.textContent = isHidden ? "Hide Evidence" : "Show Evidence";
-    });
-  }
-
-  // Right Panel Postmortem Toggle
-  const btnToggleRightPm = document.getElementById("btn-toggle-right-postmortem");
-  const rightPmContainer = document.getElementById("right-report-postmortem-container");
-  if (btnToggleRightPm && rightPmContainer) {
-    btnToggleRightPm.addEventListener("click", () => {
-      const isHidden = rightPmContainer.style.display === "none";
-      rightPmContainer.style.display = isHidden ? "flex" : "none";
-      btnToggleRightPm.textContent = isHidden ? "Hide Postmortem" : "View Postmortem";
     });
   }
 
@@ -1119,209 +1063,6 @@ function renderEvaluationReport(report) {
       learningsList.appendChild(li);
     });
   }
-
-  // Also render into right panel
-  renderRightPanelReport(report);
-}
-
-function resetRightPanelEvaluation() {
-  const rightNoEvalMsg = document.getElementById("right-no-eval-msg");
-  const rightEvalReport = document.getElementById("right-eval-report");
-  if (rightNoEvalMsg) rightNoEvalMsg.style.display = "flex";
-  if (rightEvalReport) rightEvalReport.style.display = "none";
-}
-
-function renderRightPanelReport(report) {
-  const rightNoEvalMsg = document.getElementById("right-no-eval-msg");
-  const rightEvalReport = document.getElementById("right-eval-report");
-  if (rightNoEvalMsg) rightNoEvalMsg.style.display = "none";
-  if (rightEvalReport) rightEvalReport.style.display = "flex";
-
-  // Switch to evaluation subtab in right panel
-  const rTabEvalBtn = document.getElementById("right-tab-eval-btn");
-  const rTabHistBtn = document.getElementById("right-tab-history-btn");
-  const rEvalPane = document.getElementById("right-eval-pane");
-  const rHistPane = document.getElementById("right-history-pane");
-  if (rTabEvalBtn && rTabHistBtn && rEvalPane && rHistPane) {
-    rTabEvalBtn.classList.add("active");
-    rTabHistBtn.classList.remove("active");
-    rEvalPane.style.display = "flex";
-    rHistPane.style.display = "none";
-  }
-
-  const isSolved = Boolean(report.is_solved);
-  const verdict = report.overall_verdict || (isSolved ? "INCIDENT RESOLVED" : "INCIDENT UNRESOLVED");
-
-  const badge = document.getElementById("right-report-badge");
-  if (badge) {
-    badge.textContent = isSolved ? `✅ ${verdict}` : `❌ ${verdict}`;
-    badge.className = isSolved ? "report-result-badge result-solved" : "report-result-badge result-failed";
-  }
-
-  const scoreEl = document.getElementById("right-report-score");
-  if (scoreEl) scoreEl.textContent = `${report.score}/100`;
-
-  const signalEl = document.getElementById("right-report-signal");
-  if (signalEl) signalEl.textContent = report.feedback_msg;
-
-  // Explanation feedback callout
-  const feedbackSection = document.getElementById("right-report-feedback-section");
-  const explanationFeedback = document.getElementById("right-report-explanation-feedback");
-  if (feedbackSection && explanationFeedback) {
-    if (report.explanation_feedback) {
-      feedbackSection.style.display = "block";
-      explanationFeedback.textContent = report.explanation_feedback;
-    } else {
-      feedbackSection.style.display = "none";
-    }
-  }
-
-  // Four Dimensions Grid
-  const dimGrid = document.getElementById("right-eval-dimensions-grid");
-  if (dimGrid) {
-    dimGrid.innerHTML = "";
-    const dims = [
-      { key: "technical_state", label: "1. Technical State" },
-      { key: "remediation_quality", label: "2. Remediation Quality" },
-      { key: "diagnostic_reasoning", label: "3. Diagnostic Reasoning" },
-      { key: "operational_efficiency", label: "4. Efficiency & Signals" },
-    ];
-
-    dims.forEach((d) => {
-      const dimData = report.dimensions ? report.dimensions[d.key] : null;
-      const status = dimData ? (dimData.status || "UNKNOWN") : "UNKNOWN";
-      const detail = dimData ? (dimData.detail || "No data recorded") : "No dimension data";
-      const score = dimData && dimData.score !== undefined ? `${dimData.score} pts` : "";
-
-      let badgeClass = "badge-unknown";
-      if (status === "PASS" || status === "OPTIMAL") badgeClass = "badge-pass";
-      else if (status === "PARTIAL" || status === "ACCEPTABLE") badgeClass = "badge-partial";
-      else if (status === "NEEDS_IMPROVEMENT") badgeClass = "badge-needs-improvement";
-      else if (status === "FAIL" || status === "INEFFICIENT") badgeClass = "badge-fail";
-
-      const card = document.createElement("div");
-      card.className = "dim-card";
-      card.innerHTML = `
-        <div class="dim-header">
-          <span class="dim-title">${d.label}</span>
-          <span class="dim-badge ${badgeClass}">${status}</span>
-        </div>
-        <div class="dim-detail">${detail}</div>
-        ${score ? `<div style="font-size: 11px; color: var(--text-muted); font-weight: 600; margin-top: 4px;">Score: ${score}</div>` : ""}
-      `;
-      dimGrid.appendChild(card);
-    });
-  }
-
-  // State-Based Machine Evidence Section
-  const evSection = document.getElementById("right-report-evidence-section");
-  const evidenceContainer = document.getElementById("right-evidence-container");
-  const btnToggleEv = document.getElementById("btn-toggle-right-evidence");
-  if (evSection && evidenceContainer) {
-    evidenceContainer.style.display = "none";
-    if (btnToggleEv) btnToggleEv.textContent = "Show Evidence";
-    evidenceContainer.innerHTML = "";
-    if (report.evidence && report.evidence.summary && report.evidence.summary.length > 0) {
-      evSection.style.display = "block";
-      let html = `<table class="evidence-table">
-        <thead>
-          <tr>
-            <th>Metric</th>
-            <th>Before</th>
-            <th>After</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>`;
-      report.evidence.summary.forEach((item) => {
-        const isPass = item.status === "PASS" || item.status === "HEALTHY";
-        const badgeCls = isPass ? "badge-pass" : "badge-fail";
-        html += `<tr>
-          <td><strong>${item.metric}</strong><br><span style="color: var(--text-muted); font-size: 10px;">${item.detail || ""}</span></td>
-          <td style="color: var(--accent-red); font-family: monospace; font-size: 11px;">${item.before || "N/A"}</td>
-          <td style="color: var(--accent-green); font-family: monospace; font-size: 11px;">${item.after || "N/A"}</td>
-          <td><span class="dim-badge ${badgeCls}">${item.status}</span></td>
-        </tr>`;
-      });
-      html += `</tbody></table>`;
-      evidenceContainer.innerHTML = html;
-    } else {
-      evSection.style.display = "block";
-      evidenceContainer.innerHTML = `<div style="font-size: 12px; color: var(--text-muted); padding: 8px;">No machine evidence recorded.</div>`;
-    }
-  }
-
-  // Structured postmortem sections
-  const pmContainer = document.getElementById("right-report-postmortem-container");
-  const btnTogglePm = document.getElementById("btn-toggle-right-postmortem");
-  if (pmContainer) {
-    pmContainer.style.display = "none";
-    if (btnTogglePm) btnTogglePm.textContent = "View Postmortem";
-    pmContainer.innerHTML = "";
-    if (report.structured_postmortem && report.structured_postmortem.sections) {
-      const rawSecs = report.structured_postmortem.sections;
-      const entries = Array.isArray(rawSecs)
-        ? rawSecs.map((s) => [s.title, s.content])
-        : Object.entries(rawSecs);
-
-      entries.forEach(([title, content]) => {
-        const card = document.createElement("div");
-        card.className = "postmortem-card";
-        card.innerHTML = `
-          <div class="postmortem-title">${title}</div>
-          <div class="postmortem-body">${content}</div>
-        `;
-        pmContainer.appendChild(card);
-      });
-    } else {
-      if (report.expected_root_cause) {
-        const rcCard = document.createElement("div");
-        rcCard.className = "postmortem-card";
-        rcCard.innerHTML = `
-          <div class="postmortem-title">Root Cause Diagnosis</div>
-          <div class="postmortem-body">${report.expected_root_cause}</div>
-        `;
-        pmContainer.appendChild(rcCard);
-      }
-      if (report.expected_fix) {
-        const fixCard = document.createElement("div");
-        fixCard.className = "postmortem-card";
-        fixCard.innerHTML = `
-          <div class="postmortem-title">Remediation & Fix</div>
-          <div class="postmortem-body">${report.expected_fix}</div>
-        `;
-        pmContainer.appendChild(fixCard);
-      }
-    }
-  }
-
-  // AI Senior SRE Feedback
-  const aiSection = document.getElementById("right-report-ai-section");
-  const aiCritique = document.getElementById("right-report-ai-critique");
-  if (aiSection && aiCritique) {
-    if (report.ai_critique && report.ai_critique.trim()) {
-      aiSection.style.display = "block";
-      aiCritique.textContent = report.ai_critique;
-    } else {
-      aiSection.style.display = "none";
-    }
-  }
-
-  // Key DevOps Takeaways
-  const learningsList = document.getElementById("right-report-learnings");
-  if (learningsList) {
-    learningsList.innerHTML = "";
-    if (report.learning_points && report.learning_points.length > 0) {
-      report.learning_points.forEach((pt) => {
-        const li = document.createElement("li");
-        li.textContent = pt;
-        learningsList.appendChild(li);
-      });
-      learningsList.parentElement.style.display = "block";
-    } else {
-      learningsList.parentElement.style.display = "none";
-    }
-  }
 }
 
 // --- Scenario Library ---
@@ -1368,7 +1109,6 @@ window.loadSpecificScenario = async function(id) {
   try {
     const res = await apiFetch(`/api/incidents/${id}/start`, { method: "POST" });
     if (res.ok) {
-      resetRightPanelEvaluation();
       switchToTab("incident-pane");
       connectTerminalWs();
       fetchStatus();
@@ -1493,10 +1233,6 @@ async function fetchProgress() {
 // --- History View ---
 
 async function fetchHistory() {
-  const rightEmpty = document.getElementById("right-history-empty");
-  const rightList = document.getElementById("right-history-list");
-  const rightCount = document.getElementById("right-history-count");
-
   if (!currentUser) {
     const emptyMsg = document.getElementById("history-empty-msg");
     if (emptyMsg) {
@@ -1505,12 +1241,6 @@ async function fetchHistory() {
     }
     const tbody = document.getElementById("history-tbody");
     if (tbody) tbody.innerHTML = "";
-    if (rightEmpty) {
-      rightEmpty.style.display = "block";
-      rightEmpty.textContent = "Please sign in to view saved attempt history.";
-    }
-    if (rightList) rightList.innerHTML = "";
-    if (rightCount) rightCount.textContent = "0";
     return;
   }
 
@@ -1521,28 +1251,22 @@ async function fetchHistory() {
 
     const emptyMsg = document.getElementById("history-empty-msg");
     const tbody = document.getElementById("history-tbody");
-    if (rightCount) rightCount.textContent = attempts.length;
+    if (!tbody) return;
 
     if (attempts.length === 0) {
       if (emptyMsg) {
         emptyMsg.style.display = "block";
         emptyMsg.textContent = "No completed attempts recorded yet. Solve an incident to view your historical evaluations and postmortems.";
       }
-      if (tbody) tbody.innerHTML = "";
-      if (rightEmpty) {
-        rightEmpty.style.display = "block";
-        rightEmpty.textContent = "No completed attempts recorded yet.";
-      }
-      if (rightList) rightList.innerHTML = "";
+      tbody.innerHTML = "";
       return;
     }
 
     if (emptyMsg) emptyMsg.style.display = "none";
-    if (rightEmpty) rightEmpty.style.display = "none";
-    if (tbody) tbody.innerHTML = "";
-    if (rightList) rightList.innerHTML = "";
+    tbody.innerHTML = "";
 
     attempts.forEach((a) => {
+      const tr = document.createElement("tr");
       const isSolved = a.status === "SOLVED";
       const statusBadge = isSolved
         ? `<span class="status-badge-solved">SOLVED</span>`
@@ -1551,45 +1275,21 @@ async function fetchHistory() {
       const dateStr = a.created_at ? new Date(a.created_at).toLocaleString() : "N/A";
       const durationStr = a.duration_sec ? `${Math.round(a.duration_sec)}s` : "<1m";
 
-      if (tbody) {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>
-            <strong>${a.scenario_title || a.scenario_id}</strong>
-            <div style="font-size: 11px; color: var(--text-muted);">${a.scenario_id}</div>
-          </td>
-          <td><span class="badge badge-level badge-level-${(a.level || 'EASY').toLowerCase()}">${a.level || 'EASY'}</span></td>
-          <td>${statusBadge}</td>
-          <td><span class="score-badge ${scoreClass}">${a.score}/100</span></td>
-          <td>${durationStr}</td>
-          <td style="color: var(--text-muted); font-size: 12px;">${dateStr}</td>
-          <td>
-            <button class="btn btn-sm" onclick="inspectHistoryAttempt('${a.id}')" style="font-size: 11px; padding: 2px 8px;">Inspect Report</button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      }
-
-      if (rightList) {
-        const card = document.createElement("div");
-        card.className = "right-history-card";
-        const shortDate = a.created_at ? new Date(a.created_at).toLocaleDateString() : "";
-        card.innerHTML = `
-          <div class="right-history-header">
-            <span class="right-history-title">${escapeHtml(a.scenario_title || a.scenario_id)}</span>
-            <span class="score-badge ${scoreClass}">${a.score}/100</span>
-          </div>
-          <div class="right-history-meta">
-            <span class="badge badge-level badge-level-${(a.level || 'EASY').toLowerCase()}">${a.level || 'EASY'}</span>
-            ${statusBadge}
-            <span>${shortDate}</span>
-          </div>
-        `;
-        card.addEventListener("click", () => {
-          inspectHistoryAttempt(a.id);
-        });
-        rightList.appendChild(card);
-      }
+      tr.innerHTML = `
+        <td>
+          <strong>${a.scenario_title || a.scenario_id}</strong>
+          <div style="font-size: 11px; color: var(--text-muted);">${a.scenario_id}</div>
+        </td>
+        <td><span class="badge badge-level badge-level-${(a.level || 'EASY').toLowerCase()}">${a.level || 'EASY'}</span></td>
+        <td>${statusBadge}</td>
+        <td><span class="score-badge ${scoreClass}">${a.score}/100</span></td>
+        <td>${durationStr}</td>
+        <td style="color: var(--text-muted); font-size: 12px;">${dateStr}</td>
+        <td>
+          <button class="btn btn-sm" onclick="inspectHistoryAttempt('${a.id}')" style="font-size: 11px; padding: 2px 8px;">Inspect Report</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
     });
   } catch (e) {
     console.error("History fetch error:", e);
@@ -1604,7 +1304,20 @@ window.inspectHistoryAttempt = async function(attemptId) {
       return;
     }
     const attempt = await res.json();
+    openEvaluateModal();
+
+    document.getElementById("eval-form").style.display = "none";
+    document.getElementById("eval-report").style.display = "flex";
+    document.getElementById("eval-footer").style.display = "flex";
+    document.getElementById("btn-eval-next").style.display = "none";
+
     const isSolved = attempt.status === "SOLVED";
+    const badge = document.getElementById("report-badge");
+    badge.textContent = isSolved ? `✅ ${attempt.overall_verdict || "INCIDENT RESOLVED"}` : `❌ ${attempt.overall_verdict || "INCIDENT UNRESOLVED"}`;
+    badge.className = isSolved ? "report-result-badge result-solved" : "report-result-badge result-failed";
+
+    document.getElementById("report-score").textContent = `${attempt.score}/100`;
+    document.getElementById("report-signal").textContent = attempt.technical_resolution || (isSolved ? "All system invariants verified healthy." : "System verification failed.");
 
     const reportObj = {
       ...attempt,
@@ -1613,12 +1326,6 @@ window.inspectHistoryAttempt = async function(attemptId) {
       feedback_msg: attempt.technical_resolution || "Machine evaluation record loaded from persistent history."
     };
     renderEvaluationReport(reportObj);
-
-    // Switch to incident workspace & right evaluation subtab to view report cleanly beside terminal
-    switchToTab("incident-pane");
-    const rTabEvalBtn = document.getElementById("right-tab-eval-btn");
-    if (rTabEvalBtn) rTabEvalBtn.click();
-    closeEvaluateModal();
   } catch (e) {
     alert("Error loading attempt: " + e);
   }

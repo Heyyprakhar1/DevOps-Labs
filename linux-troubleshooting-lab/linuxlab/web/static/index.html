@@ -147,100 +147,14 @@
         </div>
 
         <div class="terminal-container" id="terminal-container"></div>
-      </section>
 
-      <!-- Right Side Panel: Evaluation, Postmortem & History -->
-      <aside class="right-panel" id="incident-right-panel">
-        <div class="right-panel-header">
-          <div class="right-panel-nav">
-            <button type="button" class="btn btn-sm right-tab-btn active" id="right-tab-eval-btn">Evaluation &amp; RCA</button>
-            <button type="button" class="btn btn-sm right-tab-btn" id="right-tab-history-btn">History (<span id="right-history-count">0</span>)</button>
-          </div>
-        </div>
-
-        <div class="right-panel-body">
-          <!-- Subtab 1: Evaluation & RCA -->
-          <div id="right-eval-pane" class="right-tab-content">
-            <!-- Placeholder state before evaluation -->
-            <div id="right-no-eval-msg" class="right-placeholder">
-              <div class="right-placeholder-icon">📋</div>
-              <div class="right-placeholder-title">Evaluation &amp; RCA</div>
-              <p class="right-placeholder-desc">
-                Investigate and troubleshoot using the terminal. When ready, click <strong>Evaluate Incident</strong> in the left sidebar to run system state verification, inspect evidence, and view your post-mortem.
-              </p>
-            </div>
-
-            <!-- Full Evaluation Report -->
-            <div id="right-eval-report" style="display: none; flex-direction: column; gap: 14px;">
-              <div style="display: flex; justify-content: space-between; align-items: center;">
-                <div class="report-result-badge" id="right-report-badge">INCIDENT RESOLVED</div>
-                <div class="report-score" id="right-report-score">85/100</div>
-              </div>
-
-              <!-- Explanation feedback callout -->
-              <div id="right-report-feedback-section" style="display: none;">
-                <div class="eval-feedback-box" id="right-report-explanation-feedback"></div>
-              </div>
-
-              <!-- Four Dimensions Grid -->
-              <div class="report-section">
-                <div class="report-label" style="margin-bottom: 8px;">Evaluation Dimensions</div>
-                <div class="eval-dimensions-grid" id="right-eval-dimensions-grid"></div>
-              </div>
-
-              <div class="report-section">
-                <div class="report-label">Verification Signal</div>
-                <div class="report-value" id="right-report-signal"></div>
-              </div>
-
-              <!-- State-Based Machine Evidence Section -->
-              <div class="report-section" id="right-report-evidence-section">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                  <div class="report-label">State-Based Machine Evidence</div>
-                  <button type="button" class="btn btn-sm" id="btn-toggle-right-evidence" style="font-size: 11px; padding: 2px 8px; cursor: pointer;">Show Evidence</button>
-                </div>
-                <div id="right-evidence-container" style="display: none; overflow-x: auto;"></div>
-              </div>
-
-              <!-- Structured Level-Specific Postmortem Sections -->
-              <div class="report-section" id="right-report-postmortem-section">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                  <div class="report-label">Structured Post-Mortem &amp; Expected RCA</div>
-                  <button type="button" class="btn btn-sm" id="btn-toggle-right-postmortem" style="font-size: 11px; padding: 2px 8px; cursor: pointer;">View Postmortem</button>
-                </div>
-                <div id="right-report-postmortem-container" style="display: none; flex-direction: column; gap: 10px;"></div>
-              </div>
-
-              <div class="report-section" id="right-report-ai-section" style="display: none;">
-                <div class="report-label">AI Senior SRE Feedback</div>
-                <div class="report-ai" id="right-report-ai-critique"></div>
-              </div>
-
-              <div class="report-section">
-                <div class="report-label">Key DevOps Takeaways</div>
-                <ul id="right-report-learnings" style="padding-left: 20px; font-size: 13px; color: var(--text-primary);"></ul>
-              </div>
-            </div>
-          </div>
-
-          <!-- Subtab 2: History -->
-          <div id="right-history-pane" class="right-tab-content" style="display: none;">
-            <div id="right-history-empty" style="display: none; color: var(--text-muted); font-size: 13px; padding: 16px; text-align: center; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px;">
-              No completed attempts recorded yet.
-            </div>
-            <div id="right-history-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
-          </div>
-        </div>
-      </aside>
-
-      <!-- Bottom Drawer: Session Command History spanning across bottom -->
-      <div class="command-history-drawer" id="incident-history-drawer">
+        <!-- Command History Drawer -->
         <div class="command-history-bar" id="history-toggle">
           <span>📜 Session Command History (<span id="cmd-count">0</span> commands)</span>
           <span id="history-arrow">▲</span>
         </div>
         <div class="command-history-content" id="history-content"></div>
-      </div>
+      </section>
     </section>
 
     <!-- Tab 2: Scenario Library -->
